@@ -15,7 +15,7 @@ import pytorch_lightning as pl
 # My methods and Classes
 import network as models
 from optimiser import LARSSGD
-import neptune.new as neptune
+import neptune
 from utils import rank_zero_check
 
 class SSLLinearEval(pl.LightningModule):

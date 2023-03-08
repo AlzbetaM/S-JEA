@@ -53,7 +53,9 @@ def cli_main():
     # Logging
     neptune_logger = NeptuneLogger(
             mode=args.mode,
-            api_key=None,
+            api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsI"
+                    "joiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJhYmNlN2NlYS05Y2"
+                    "E1LTQyZjktOWMzYS04MDIyNmYyNTIxMGQifQ==",
             project=args.project_name,
             name='Testing',  # Optional,
             tags=["Finetune", args.tag],  # Optional,

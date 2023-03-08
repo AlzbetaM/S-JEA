@@ -16,7 +16,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.utilities import rank_zero_only
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
-import neptune.new as neptune
+import neptune
 
 class PTPrintingCallback(pl.Callback):
     ''' Callback to handle all metric printing and visualisations during self-supervised pretraining '''
