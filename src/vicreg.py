@@ -103,6 +103,23 @@ class VICReg(pl.LightningModule):
         z_i, _ = self.encoder_online(imgs[0])
         z_j, _ = self.encoder_online(imgs[1])
 
+        # change output z from (128, 256) to (32, 3, 32, 32)
+        y_i = torch.Tensor(z_i)
+        y_j = torch.Tensor(z_j)
+        y_i = y_i.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
+        y_j = y_j.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
+
+        # stacked encoder
+        stack_i, _ = self.encoder_online(y_i)
+        stack_j, _ = self.encoder_online(y_j)
+
+        # stacked loss
+        s_loss_inv = self.invariance_loss(stack_i, stack_j)
+        s_loss_var, _ = self.variance_loss(stack_i, stack_j)
+        s_loss_cov = self.covariance_loss(stack_i, stack_j)
+
+        s_loss = ((self.hparams.inv * s_loss_inv) + (self.hparams.var * s_loss_var) + (self.hparams.covar * s_loss_cov))
+
         # Ensure float32
         z_i, z_j = z_i.float(), z_j.float()
 
@@ -114,13 +131,22 @@ class VICReg(pl.LightningModule):
 
         loss = ((self.hparams.inv * loss_inv) + (self.hparams.var * loss_var) + (self.hparams.covar * loss_cov))
 
+        # Overall Loss
+        all_loss = loss + s_loss
+
         # Logging
         if rank_zero_check() and mode == 'train':
             self.logger.experiment["train/loss_inv"].log(loss_inv.item())
             self.logger.experiment["train/loss_var"].log(loss_var.item())
             self.logger.experiment["train/loss_cov"].log(loss_cov.item())
+            self.logger.experiment["train/loss"].log(loss)
+            
+            self.logger.experiment["train/s_loss_inv"].log(s_loss_inv.item())
+            self.logger.experiment["train/s_loss_var"].log(s_loss_var.item())
+            self.logger.experiment["train/s_loss_cov"].log(s_loss_cov.item())
+            self.logger.experiment["train/s_loss"].log(s_loss)
         
-        return loss
+        return all_loss
 
     def training_step(self, batch, batch_idx):
         # Set to training
