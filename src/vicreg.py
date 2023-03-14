@@ -1,9 +1,10 @@
-#!/usr/bin/env python
+##!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import numpy as np
 from configargparse import ArgumentParser
 import collections
 from collections import OrderedDict
+import copy
 
 # Torch
 import torch
@@ -39,8 +40,7 @@ class VICReg(pl.LightningModule):
         super().__init__()
         # Command line args
         self.save_hyperparameters()
-        
-        
+
         # Compute resources for distributed operations
         self.world_size = self.hparams.num_nodes * self.hparams.devices
 
@@ -49,9 +49,9 @@ class VICReg(pl.LightningModule):
         # Remove standard fc layer
         self.encoder_online.fc = Identity()
 
-        # Get the embedding dimensions of the encoders 
+        # Get the embedding dimensions of the encoders
         emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '101' in self.hparams.model else 96
-        
+
         # Define the projection head
         fc = OrderedDict([])
         fc['fc1'] = torch.nn.Linear(emb_dim, self.hparams.h_units)
@@ -63,9 +63,10 @@ class VICReg(pl.LightningModule):
             fc['bn2'] = torch.nn.BatchNorm1d(self.hparams.h_units)
         fc['relu2'] = torch.nn.ReLU()
         fc['fc3'] = torch.nn.Linear(self.hparams.h_units, self.hparams.o_units)
-        
+
         # Assign the projection head to the encoder
         self.encoder_online.fc = torch.nn.Sequential(fc)
+        self.encoder_stacked = copy.deepcopy(self.encoder_online)
 
         self.num_batches = num_batches
         self.effective_bsz = effective_bsz
@@ -73,15 +74,15 @@ class VICReg(pl.LightningModule):
         self.current_tau = self.hparams.tau
         self.initial_sharpen = self.hparams.initial_sharpen
         self.current_sharpen = self.hparams.initial_sharpen
-        
+
         print("\n\n\n effective_bsz:{} \n\n\n".format(self.effective_bsz))
 
-        self.rep = np.empty((0, self.hparams.o_units+1), dtype=float)
+        self.rep = np.empty((0, self.hparams.o_units + 1), dtype=float)
         self.train_feature_bank = []
         self.train_label_bank = []
         self.test_feature_bank = []
         self.test_label_bank = []
-        
+
         self.plot_train_feature_bank = collections.deque(maxlen=2500//self.hparams.batch_size)
         self.plot_train_label_bank = collections.deque(maxlen=2500//self.hparams.batch_size)
         self.plot_test_feature_bank = collections.deque(maxlen=2500//self.hparams.batch_size)
@@ -103,36 +104,41 @@ class VICReg(pl.LightningModule):
         z_i, _ = self.encoder_online(imgs[0])
         z_j, _ = self.encoder_online(imgs[1])
 
-        # change output z from (128, 256) to (32, 3, 32, 32)
-        y_i = torch.Tensor(z_i)
-        y_j = torch.Tensor(z_j)
-        y_i = y_i.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
-        y_j = y_j.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
-
-        # stacked encoder
-        stack_i, _ = self.encoder_online(y_i)
-        stack_j, _ = self.encoder_online(y_j)
-
-        # stacked loss
-        s_loss_inv = self.invariance_loss(stack_i, stack_j)
-        s_loss_var, _ = self.variance_loss(stack_i, stack_j)
-        s_loss_cov = self.covariance_loss(stack_i, stack_j)
-
-        s_loss = ((self.hparams.inv * s_loss_inv) + (self.hparams.var * s_loss_var) + (self.hparams.covar * s_loss_cov))
-
-        # Ensure float32
+         # Ensure float32
         z_i, z_j = z_i.float(), z_j.float()
 
         # Compute loss
         loss_inv = self.invariance_loss(z_i, z_j)
-            
+
         loss_var, _ = self.variance_loss(z_i, z_j)
         loss_cov = self.covariance_loss(z_i, z_j)
 
         loss = ((self.hparams.inv * loss_inv) + (self.hparams.var * loss_var) + (self.hparams.covar * loss_cov))
+        all_loss = loss
 
-        # Overall Loss
-        all_loss = loss + s_loss
+        if self.hparams.stacked != 0 :
+          # change output z from (128, 256) to (32, 3, 32, 32)
+          y_i = torch.Tensor(z_i)
+          y_j = torch.Tensor(z_j)
+          y_i = y_i.unsqueeze_(-1).expand(128,256,3).transpose(0,2).reshape(32,3,32,32)
+          y_j = y_j.unsqueeze_(-1).expand(128,256,3).transpose(0,2).reshape(32,3,32,32)
+
+          #stacked encoder
+          if self.hparams.stacked == 2:
+            stack_i, _ = self.encoder_stacked(y_i)
+            stack_j, _ = self.encoder_stacked(y_j)
+          else:
+            stack_i, _ = self.encoder_online(y_i)
+            stack_j, _ = self.encoder_online(y_j)
+
+          print(z_i)
+          #stacked loss
+          s_loss_inv = self.invariance_loss(stack_i,stack_j)
+          s_loss_var, _ = self.variance_loss(stack_i,stack_j)
+          s_loss_cov = self.covariance_loss(stack_i,stack_j)
+
+          s_loss = ((self.hparams.inv * s_loss_inv) + (self.hparams.var * s_loss_var) + (self.hparams.covar * s_loss_cov))
+          all_loss = loss + s_loss
 
         # Logging
         if rank_zero_check() and mode == 'train':
@@ -140,82 +146,87 @@ class VICReg(pl.LightningModule):
             self.logger.experiment["train/loss_var"].log(loss_var.item())
             self.logger.experiment["train/loss_cov"].log(loss_cov.item())
             self.logger.experiment["train/loss"].log(loss)
-            
-            self.logger.experiment["train/s_loss_inv"].log(s_loss_inv.item())
-            self.logger.experiment["train/s_loss_var"].log(s_loss_var.item())
-            self.logger.experiment["train/s_loss_cov"].log(s_loss_cov.item())
-            self.logger.experiment["train/s_loss"].log(s_loss)
-        
+
+            if self.hparams.stacked != 0:
+              self.logger.experiment["train/s_loss_inv"].log(s_loss_inv.item())
+              self.logger.experiment["train/s_loss_var"].log(s_loss_var.item())
+              self.logger.experiment["train/s_loss_cov"].log(s_loss_cov.item())
+              self.logger.experiment["train/s_loss"].log(s_loss)
+
         return all_loss
 
     def training_step(self, batch, batch_idx):
         # Set to training
         self.encoder_online.train()
-        
+        if self.hparams.stacked == 2:
+          self.encoder_stacked.train()
+
         loss = self.shared_step(batch, batch_idx, 'train')
 
         # Progress Bar
         self.log_dict({'loss': loss}, prog_bar=True, on_epoch=True, sync_dist=True)
-        
+
         # Logging
         if rank_zero_check():
             self.logger.experiment["train/loss_step"].log(loss.item())
 
         return loss
-        
-    
+
+
     def val_shared_step(self, batch, batch_idx, idx):
         # This statement is for plotting visualisation purposes
         if len(batch) > 2:
             img, y, img_path = batch
         else:
             img, y = batch
-        
+
         # no_grad ensures we don't train
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
-        
+
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
             self.train_label_bank.append(y)
-            
+
             self.plot_train_feature_bank.append(embedding.to(embedding.device, dtype=torch.float32))
             self.plot_train_label_bank.append(y)
-            
+
         elif idx == 2:
             self.test_feature_bank.append(F.normalize(embedding, dim=1))
             self.test_label_bank.append(y)
-            
+
             self.plot_test_feature_bank.append(embedding.to(embedding.device, dtype=torch.float32))
             self.plot_test_label_bank.append(y)
-            
+
             if len(batch) > 2 and self.hparams.dataset == 'stl10':
                 self.plot_test_path_bank.append(img_path)
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
         # Set to inference mode
         self.encoder_online.eval()
-        
+        if self.hparams.stacked == 2:
+          self.encoder_stacked.eval()
+
         if dataloader_idx == 0:
 
             loss = self.shared_step(batch, batch_idx, 'val')
-        
+
             # Progress Bar
             self.log_dict({'valid_loss': loss}, prog_bar=True, on_epoch=True, sync_dist=True)
-            
+
             # Logging
             if rank_zero_check():
                 self.logger.experiment["valid/loss_step"].log(loss.item())
-        
+
         elif dataloader_idx == 1:
             self.val_shared_step(batch, batch_idx, dataloader_idx)
 
         elif dataloader_idx == 2:
             self.val_shared_step(batch, batch_idx, dataloader_idx)
-    
+
     def validation_epoch_end(self, output) -> None:
         # Compute final global metrics and plot visualisation of embedding space
-        
+
         self.train_feature_bank = torch.cat(self.train_feature_bank, dim=0).t().contiguous()
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
@@ -224,14 +235,14 @@ class VICReg(pl.LightningModule):
         total_top1, total_num = 0.0, 0
 
         for feat, label in zip(self.test_feature_bank, self.test_label_bank):
-            
+
             feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
-            
+
             pred_label = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank, self.hparams.num_classes, 200, 0.1)
-            
+
             total_num += feat.size(0)
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
-            
+
         self.val_knn = total_top1 / total_num * 100
 
         self.train_feature_bank = []
@@ -239,7 +250,6 @@ class VICReg(pl.LightningModule):
 
         self.test_feature_bank = []
         self.test_label_bank = []
-
 
     def knn_predict(self, feature, feature_bank, feature_labels, classes, knn_k, knn_t):
         # compute cos similarity between each feature vector and feature bank ---> [B, N]
@@ -259,11 +269,11 @@ class VICReg(pl.LightningModule):
         pred_scores = torch.sum(one_hot_label.view(feature.size(0), -1, classes) * sim_weight.unsqueeze(dim=-1), dim=1)
 
         pred_labels = pred_scores.argsort(dim=-1, descending=True)
-        
+
         return pred_labels
 
     def configure_optimizers(self):
-        
+
         # This is for large batch sizes
         if self.effective_bsz > 1024:
             lr = (self.hparams.learning_rate * (self.effective_bsz / 256))
@@ -279,7 +289,7 @@ class VICReg(pl.LightningModule):
                     if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
          'WD_exclude': True,
          'weight_decay': 0}]
-        
+
         if self.hparams.optimiser == 'lars':
             optimizer_euc = LARSSGD(
                 param_groups, lr=lr, weight_decay=self.hparams.weight_decay, eta=0.001, nesterov=False)
@@ -310,8 +320,8 @@ class VICReg(pl.LightningModule):
                 final_lr=1.0e-06,
                 ref_wd=self.hparams.weight_decay,
                 final_wd=self.hparams.final_weight_decay,
-                T_max=int(1.25*self.trainer.max_epochs*self.num_batches))            
-        
+                T_max=int(1.25*self.trainer.max_epochs*self.num_batches))
+
         return [optimizer_euc], [{'scheduler': scheduler,
                 'interval': 'step'}]
 
@@ -357,7 +367,7 @@ class VICReg(pl.LightningModule):
         parser.add_argument('--use_bn', dest='use_bn', action='store_false',
                             help='To use batch norm (Default: True)')
         parser.set_defaults(use_bn=True)
-        
+
         parser.add_argument('--inv', type=float, default=25.)
         parser.add_argument('--var', type=float, default=25.)
         parser.add_argument('--covar', type=float, default=1.)
@@ -373,8 +383,10 @@ class VICReg(pl.LightningModule):
         parser.set_defaults(save_checkpoint=False)
         parser.add_argument('--print_freq', type=int, default=1)
 
+        parser.add_argument('--stacked', type=int, default=0)
+
         return parser
-    
+
 
     def off_diagonal(self, x):
         n, m = x.shape
@@ -404,14 +416,14 @@ class VICReg(pl.LightningModule):
         # Gather operation for distributed computation
         z1 = torch.cat(tuple(self.all_gather(z1, sync_grads=True)), dim=0)
         z2 = torch.cat(tuple(self.all_gather(z2, sync_grads=True)), dim=0)
-        
+
         z1 = z1 - z1.mean(dim=0)
         z2 = z2 - z2.mean(dim=0)
 
         eps = 1e-4
         std_z1 = torch.sqrt(z1.var(dim=0) + eps)
         std_z2 = torch.sqrt(z2.var(dim=0) + eps)
-        
+
         std_loss = (torch.mean(F.relu(1.0 - std_z1)) / 2 ) + (torch.mean(F.relu(1.0 - std_z2)) / 2 )
 
         return std_loss, std_z1
