@@ -131,7 +131,6 @@ class VICReg(pl.LightningModule):
                 stack_i, _ = self.encoder_online(y_i)
                 stack_j, _ = self.encoder_online(y_j)
 
-            print(z_i)
             # Stacked loss
             s_loss_inv = self.invariance_loss(stack_i, stack_j)
             s_loss_var, _ = self.variance_loss(stack_i, stack_j)
