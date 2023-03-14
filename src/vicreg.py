@@ -20,22 +20,22 @@ from utils import rank_zero_check, CosineWD_LR_Schedule
 
 class VICReg(pl.LightningModule):
     def __init__(self,
-                num_classes,
-                num_batches,
-                num_nodes,
-                devices,
-                learning_rate: float = 0.2,
-                weight_decay: float = 1.5e-6,
-                batch_size: int = 32,
-                num_workers: int = 0,
-                warmup_epochs: int = 0,
-                max_epochs: int = 1,
-                o_units: int = 256,
-                h_units: int = 4096,
-                model: str = 'resnet18',
-                tau: float = 0.996,
-                optimiser: str = 'sgd',
-                effective_bsz: int = 256,
+                 num_classes,
+                 num_batches,
+                 num_nodes,
+                 devices,
+                 learning_rate: float = 0.2,
+                 weight_decay: float = 1.5e-6,
+                 batch_size: int = 32,
+                 num_workers: int = 0,
+                 warmup_epochs: int = 0,
+                 max_epochs: int = 1,
+                 o_units: int = 256,
+                 h_units: int = 4096,
+                 model: str = 'resnet18',
+                 tau: float = 0.996,
+                 optimiser: str = 'sgd',
+                 effective_bsz: int = 256,
                  **kwargs):
         super().__init__()
         # Command line args
@@ -83,11 +83,11 @@ class VICReg(pl.LightningModule):
         self.test_feature_bank = []
         self.test_label_bank = []
 
-        self.plot_train_feature_bank = collections.deque(maxlen=2500//self.hparams.batch_size)
-        self.plot_train_label_bank = collections.deque(maxlen=2500//self.hparams.batch_size)
-        self.plot_test_feature_bank = collections.deque(maxlen=2500//self.hparams.batch_size)
-        self.plot_test_label_bank = collections.deque(maxlen=2500//self.hparams.batch_size)
-        self.plot_test_path_bank = collections.deque(maxlen=2500//self.hparams.batch_size)
+        self.plot_train_feature_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
+        self.plot_train_label_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
+        self.plot_test_feature_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
+        self.plot_test_label_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
+        self.plot_test_path_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
 
         self.val_knn = 0.0
 
@@ -98,13 +98,13 @@ class VICReg(pl.LightningModule):
         else:
             img_batch, _ = batch
 
-        imgs = [u for u in img_batch] # Multiliple image views not implemented
+        imgs = [u for u in img_batch]  # Multiliple image views not implemented
 
         # Pass each view to the encoder
         z_i, _ = self.encoder_online(imgs[0])
         z_j, _ = self.encoder_online(imgs[1])
 
-         # Ensure float32
+        # Ensure float32
         z_i, z_j = z_i.float(), z_j.float()
 
         # Compute loss
@@ -116,29 +116,30 @@ class VICReg(pl.LightningModule):
         loss = ((self.hparams.inv * loss_inv) + (self.hparams.var * loss_var) + (self.hparams.covar * loss_cov))
         all_loss = loss
 
-        if self.hparams.stacked != 0 :
-          # change output z from (128, 256) to (32, 3, 32, 32)
-          y_i = torch.Tensor(z_i)
-          y_j = torch.Tensor(z_j)
-          y_i = y_i.unsqueeze_(-1).expand(128,256,3).transpose(0,2).reshape(32,3,32,32)
-          y_j = y_j.unsqueeze_(-1).expand(128,256,3).transpose(0,2).reshape(32,3,32,32)
+        if self.hparams.stacked == 1 or self.hparams.stacked == 2:
+            # change output z from (128, 256) to (32, 3, 32, 32)
+            y_i = z_i.detach().clone()
+            y_j = z_j.detach().clone()
+            y_i = y_i.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
+            y_j = y_j.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
 
-          #stacked encoder
-          if self.hparams.stacked == 2:
-            stack_i, _ = self.encoder_stacked(y_i)
-            stack_j, _ = self.encoder_stacked(y_j)
-          else:
-            stack_i, _ = self.encoder_online(y_i)
-            stack_j, _ = self.encoder_online(y_j)
+            # stacked encoder
+            if self.hparams.stacked == 2:
+                stack_i, _ = self.encoder_stacked(y_i)
+                stack_j, _ = self.encoder_stacked(y_j)
+            else:
+                stack_i, _ = self.encoder_online(y_i)
+                stack_j, _ = self.encoder_online(y_j)
 
-          print(z_i)
-          #stacked loss
-          s_loss_inv = self.invariance_loss(stack_i,stack_j)
-          s_loss_var, _ = self.variance_loss(stack_i,stack_j)
-          s_loss_cov = self.covariance_loss(stack_i,stack_j)
+            print(z_i)
+            # Stacked loss
+            s_loss_inv = self.invariance_loss(stack_i, stack_j)
+            s_loss_var, _ = self.variance_loss(stack_i, stack_j)
+            s_loss_cov = self.covariance_loss(stack_i, stack_j)
 
-          s_loss = ((self.hparams.inv * s_loss_inv) + (self.hparams.var * s_loss_var) + (self.hparams.covar * s_loss_cov))
-          all_loss = loss + s_loss
+            s_loss = ((self.hparams.inv * s_loss_inv) + (self.hparams.var * s_loss_var) + (
+                        self.hparams.covar * s_loss_cov))
+            all_loss = loss + s_loss
 
         # Logging
         if rank_zero_check() and mode == 'train':
@@ -147,11 +148,11 @@ class VICReg(pl.LightningModule):
             self.logger.experiment["train/loss_cov"].log(loss_cov.item())
             self.logger.experiment["train/loss"].log(loss)
 
-            if self.hparams.stacked != 0:
-              self.logger.experiment["train/s_loss_inv"].log(s_loss_inv.item())
-              self.logger.experiment["train/s_loss_var"].log(s_loss_var.item())
-              self.logger.experiment["train/s_loss_cov"].log(s_loss_cov.item())
-              self.logger.experiment["train/s_loss"].log(s_loss)
+            if self.hparams.stacked == 1 or self.hparams.stacked == 2:
+                self.logger.experiment["train/s_loss_inv"].log(s_loss_inv.item())
+                self.logger.experiment["train/s_loss_var"].log(s_loss_var.item())
+                self.logger.experiment["train/s_loss_cov"].log(s_loss_cov.item())
+                self.logger.experiment["train/s_loss"].log(s_loss)
 
         return all_loss
 
@@ -159,7 +160,7 @@ class VICReg(pl.LightningModule):
         # Set to training
         self.encoder_online.train()
         if self.hparams.stacked == 2:
-          self.encoder_stacked.train()
+            self.encoder_stacked.train()
 
         loss = self.shared_step(batch, batch_idx, 'train')
 
@@ -172,7 +173,6 @@ class VICReg(pl.LightningModule):
 
         return loss
 
-
     def val_shared_step(self, batch, batch_idx, idx):
         # This statement is for plotting visualisation purposes
         if len(batch) > 2:
@@ -183,6 +183,10 @@ class VICReg(pl.LightningModule):
         # no_grad ensures we don't train
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
+            # not sure what exactly to do here (if anything)
+            # s = projection.detach().clone()
+            # s = s.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
+            # s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
@@ -205,7 +209,7 @@ class VICReg(pl.LightningModule):
         # Set to inference mode
         self.encoder_online.eval()
         if self.hparams.stacked == 2:
-          self.encoder_stacked.eval()
+            self.encoder_stacked.eval()
 
         if dataloader_idx == 0:
 
@@ -235,10 +239,10 @@ class VICReg(pl.LightningModule):
         total_top1, total_num = 0.0, 0
 
         for feat, label in zip(self.test_feature_bank, self.test_label_bank):
-
             feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
 
-            pred_label = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank, self.hparams.num_classes, 200, 0.1)
+            pred_label = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
+                                          self.hparams.num_classes, 200, 0.1)
 
             total_num += feat.size(0)
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
@@ -283,12 +287,12 @@ class VICReg(pl.LightningModule):
         # Get parameters of the model we want to train
         # The splitting of parameters into groups is for LARS optim
         param_groups = [
-        {'params': (p for n, p in self.encoder_online.named_parameters()
-                    if ('bias' not in n) and ('bn' not in n) and len(p.shape) != 1)},
-        {'params': (p for n, p in self.encoder_online.named_parameters()
-                    if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
-         'WD_exclude': True,
-         'weight_decay': 0}]
+            {'params': (p for n, p in self.encoder_online.named_parameters()
+                        if ('bias' not in n) and ('bn' not in n) and len(p.shape) != 1)},
+            {'params': (p for n, p in self.encoder_online.named_parameters()
+                        if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
+             'WD_exclude': True,
+             'weight_decay': 0}]
 
         if self.hparams.optimiser == 'lars':
             optimizer_euc = LARSSGD(
@@ -302,14 +306,15 @@ class VICReg(pl.LightningModule):
 
         elif self.hparams.optimiser == 'sgd':
             optimizer_euc = SGD(param_groups, lr=lr,
-                            weight_decay=self.hparams.weight_decay, momentum=0.9)
+                                weight_decay=self.hparams.weight_decay, momentum=0.9)
         else:
             raise NotImplementedError('{} not setup.'.format(self.hparams.optimiser))
 
-         # Learning rate scheduling (decrease the learning rate during training)
+        # Learning rate scheduling (decrease the learning rate during training)
         if self.hparams.warmup_epochs == 0:
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer_euc, (self.num_batches / self.world_size) * self.trainer.max_epochs, last_epoch=-1, eta_min=0.002)
+                optimizer_euc, (self.num_batches / self.world_size) * self.trainer.max_epochs, last_epoch=-1,
+                eta_min=0.002)
         else:
             scheduler = CosineWD_LR_Schedule(
                 optimizer_euc,
@@ -320,10 +325,10 @@ class VICReg(pl.LightningModule):
                 final_lr=1.0e-06,
                 ref_wd=self.hparams.weight_decay,
                 final_wd=self.hparams.final_weight_decay,
-                T_max=int(1.25*self.trainer.max_epochs*self.num_batches))
+                T_max=int(1.25 * self.trainer.max_epochs * self.num_batches))
 
         return [optimizer_euc], [{'scheduler': scheduler,
-                'interval': 'step'}]
+                                  'interval': 'step'}]
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -387,7 +392,6 @@ class VICReg(pl.LightningModule):
 
         return parser
 
-
     def off_diagonal(self, x):
         n, m = x.shape
         assert n == m
@@ -424,7 +428,7 @@ class VICReg(pl.LightningModule):
         std_z1 = torch.sqrt(z1.var(dim=0) + eps)
         std_z2 = torch.sqrt(z2.var(dim=0) + eps)
 
-        std_loss = (torch.mean(F.relu(1.0 - std_z1)) / 2 ) + (torch.mean(F.relu(1.0 - std_z2)) / 2 )
+        std_loss = (torch.mean(F.relu(1.0 - std_z1)) / 2) + (torch.mean(F.relu(1.0 - std_z2)) / 2)
 
         return std_loss, std_z1
 
