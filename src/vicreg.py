@@ -120,8 +120,8 @@ class VICReg(pl.LightningModule):
             # change output z from (128, 256) to (32, 3, 32, 32)
             y_i = z_i.detach().clone()
             y_j = z_j.detach().clone()
-            y_i = y_i.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
-            y_j = y_j.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
+            y_i = y_i.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size//4, 3, 32, 32)
+            y_j = y_j.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size//4, 3, 32, 32)
 
             # stacked encoder
             if self.hparams.stacked == 2:
@@ -183,9 +183,13 @@ class VICReg(pl.LightningModule):
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
             # not sure what exactly to do here (if anything)
-            # s = projection.detach().clone()
-            # s = s.unsqueeze_(-1).expand(128, 256, 3).transpose(0, 2).reshape(32, 3, 32, 32)
-            # s_projection, s_embedding = self.encoder_stacked(s)
+            # below gives index out of bounds error
+            '''if self.hparams.stacked == 2:
+                s = projection.detach().clone()
+                s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size//4, 3, 32, 32)
+                s_projection, s_embedding = self.encoder_stacked(s)
+                projection = torch.cat((projection, s_projection), 0)
+                embedding = torch.cat((embedding, s_embedding), 0)'''
 
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
