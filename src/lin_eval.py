@@ -18,8 +18,10 @@ from optimiser import LARSSGD
 import neptune
 from utils import rank_zero_check
 
+
 class SSLLinearEval(pl.LightningModule):
     ''' Linear Evaluation training '''
+
     def __init__(self,
                  encoder,
                  num_classes,
@@ -36,8 +38,12 @@ class SSLLinearEval(pl.LightningModule):
         self.save_hyperparameters()
 
         # Define the model and remove the projection head
-        self.encoder = encoder 
+        self.encoder = encoder.encoder_online
         self.encoder.fc = Identity()
+
+        if self.hparams.stacked == 2:
+            self.s_encoder = encoder.encoder_stacked
+            self.s_encoder.fc = Identity()
 
         emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '101' in self.hparams.model else 96
 
@@ -49,6 +55,9 @@ class SSLLinearEval(pl.LightningModule):
         # Freeze encoder and train the linear eval head
         for param in self.encoder.parameters():
             param.requires_grad = False
+        if self.hparams.stacked == 2:
+            for param in self.s_encoder.parameters():
+                param.requires_grad = False
         for param in self.lin_head.parameters():
             param.requires_grad = True
 
@@ -83,6 +92,23 @@ class SSLLinearEval(pl.LightningModule):
         self.test_label_bank = []
         self.test_knn = 0.0
 
+        if self.hparams.stacked == 2:
+            self.train_acc_s = []
+            self.valid_acc_s = []
+            self.test_acc_s = []
+
+            self.train_t5_s = []
+            self.valid_t5_s = []
+            self.test_t5_s = []
+
+            self.train_loss_s = []
+            self.valid_loss_s = []
+            self.test_loss_s = []
+
+            self.train_feature_bank_s = []
+            self.test_feature_bank_s = []
+            self.test_knn_s = 0.0
+
     def training_step(self, batch, batch_idx):
         # This statement is for plotting visualisation purposes
         if len(batch) > 2:
@@ -92,7 +118,12 @@ class SSLLinearEval(pl.LightningModule):
 
         # no_grad ensures we don't train encoder
         with torch.no_grad():
-            _, feats = self.encoder(x)
+            z, feats = self.encoder(x)
+            if self.hparams.stacked == 2:
+                s = z.detach().clone()
+                s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(
+                    self.hparams.batch_size // 4, 3, 32, 32)
+                _, s_feats = self.s_encoder(s)
 
         # Linear eval head
         feats = feats.view(feats.size(0), -1)
@@ -103,8 +134,18 @@ class SSLLinearEval(pl.LightningModule):
         acc = self.accuracy(F.softmax(logits), y)
         t5 = self.top5(logits, y)
 
+        s_acc = 0
+        if self.hparams.stacked == 2:
+            s_feats = s_feats.view(s_feats.size(0), -1)
+            s_logits = self.lin_head(s_feats)
+
+            # Compute loss and metrics
+            s_loss = self.criterion(s_logits, y)
+            s_acc = self.accuracy(F.softmax(s_logits), y)
+            s_t5 = self.top5(s_logits, y)
+
         # Progress bar
-        self.log_dict({'train_acc': acc, 'train_loss': loss},
+        self.log_dict({'train_acc': acc, 'train_acc_s': s_acc, 'train_loss': loss},
                       prog_bar=True, on_epoch=True, sync_dist=True)
 
         # Logging
@@ -112,11 +153,19 @@ class SSLLinearEval(pl.LightningModule):
             self.logger.experiment["ft_train/loss_step"].log(loss.item())
             self.logger.experiment["ft_train/acc_step"].log(acc.item())
             self.logger.experiment["ft_train/t5_step"].log(t5)
+            if self.hparams.stacked == 2:
+                self.logger.experiment["ft_train/s_loss_step"].log(s_loss.item())
+                self.logger.experiment["ft_train/s_acc_step"].log(s_acc.item())
+                self.logger.experiment["ft_train/s_t5_step"].log(s_t5)
 
         # Global metrics   
         self.train_loss.append(loss.item())
         self.train_acc.append(acc.item())
         self.train_t5.append(t5)
+        if self.hparams.stacked == 2:
+            self.train_loss_s.append(s_loss.item())
+            self.train_acc_s.append(s_acc.item())
+            self.train_t5_s.append(s_t5)
 
         return loss
 
@@ -128,32 +177,53 @@ class SSLLinearEval(pl.LightningModule):
                 x, y, img_path = batch
             else:
                 x, y = batch
-            
+
             # no_grad ensures we don't train
             with torch.no_grad():
-                _, feats = self.encoder(x)
+                z, feats = self.encoder(x)
                 feats = feats.view(feats.size(0), -1)
                 logits = self.lin_head(feats)
+                if self.hparams.stacked == 2:
+                    s = z.detach().clone()
+                    s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(
+                        self.hparams.batch_size // 4, 3, 32, 32)
+                    _, s_feats = self.s_encoder(s)
+                    s_feats = s_feats.view(s_feats.size(0), -1)
+                    s_logits = self.lin_head(s_feats)
 
             # Compute loss and metrics
             loss = self.criterion(logits, y)
             acc = self.accuracy(F.softmax(logits), y)
             t5 = self.top5(logits, y)
 
+            s_acc = 0
+            if self.hparams.stacked == 2:
+                s_loss = self.criterion(s_logits, y)
+                s_acc = self.accuracy(F.softmax(s_logits), y)
+                s_t5 = self.top5(s_logits, y)
+
             # Progress Bar
-            self.log_dict({'val_acc': acc, 'val_loss': loss},
-                        prog_bar=True, on_epoch=True, sync_dist=True)
+            self.log_dict({'val_acc': acc, 'val_acc_s': s_acc, 'val_loss': loss},
+                          prog_bar=True, on_epoch=True, sync_dist=True)
 
             # Logging
             if rank_zero_check():
                 self.logger.experiment["ft_valid/loss_step"].log(loss.item())
                 self.logger.experiment["ft_valid/acc_step"].log(acc.item())
                 self.logger.experiment["ft_valid/t5_step"].log(t5)
+                if self.hparams.stacked == 2:
+                    self.logger.experiment["ft_valid/s_loss_step"].log(s_loss.item())
+                    self.logger.experiment["ft_valid/s_acc_step"].log(s_acc.item())
+                    self.logger.experiment["ft_valid/s_t5_step"].log(s_t5)
 
             # Global metrics
             self.valid_loss.append(loss.item())
             self.valid_acc.append(acc.item())
             self.valid_t5.append(t5)
+            if self.hparams.stacked == 2:
+                self.valid_loss_s.append(s_loss.item())
+                self.valid_acc_s.append(s_acc.item())
+                self.valid_t5_s.append(s_t5)
 
     def knn_predict(self, feature, feature_bank, feature_labels, classes, knn_k, knn_t):
         # compute cos similarity between each feature vector and feature bank ---> [B, N]
@@ -173,27 +243,37 @@ class SSLLinearEval(pl.LightningModule):
         pred_scores = torch.sum(one_hot_label.view(feature.size(0), -1, classes) * sim_weight.unsqueeze(dim=-1), dim=1)
 
         pred_labels = pred_scores.argsort(dim=-1, descending=True)
-        
+
         return pred_labels
 
     def knn_shared_step(self, batch, batch_idx, mode):
-            # This statement is for plotting visualisation purposes
-            if len(batch) > 2:
-                img, y, img_path = batch
-            else:
-                img, y = batch
-            
-            with torch.no_grad():
-                _, feature = self.encoder(img)
-                feature = feature.view(feature.size(0), -1)
-            
-            if mode == 'train':
-                self.train_feature_bank.append(F.normalize(feature, dim=1))
-                self.train_label_bank.append(y)
-                
-            elif mode == 'test':
-                self.test_feature_bank.append(F.normalize(feature, dim=1))
-                self.test_label_bank.append(y)
+        # This statement is for plotting visualisation purposes
+        if len(batch) > 2:
+            img, y, img_path = batch
+        else:
+            img, y = batch
+
+        with torch.no_grad():
+            z, feature = self.encoder(img)
+            feature = feature.view(feature.size(0), -1)
+            if self.hparams.stacked == 2:
+                s = z.detach().clone()
+                s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(
+                    self.hparams.batch_size // 4, 3, 32, 32)
+                _, s_feature = self.s_encoder(s)
+                s_feature = s_feature.view(s_feature.size(0), -1)
+
+        if mode == 'train':
+            self.train_feature_bank.append(F.normalize(feature, dim=1))
+            if self.hparams.stacked == 2:
+                self.train_feature_bank_s.append(F.normalize(s_feature, dim=1))
+            self.train_label_bank.append(y)
+
+        elif mode == 'test':
+            self.test_feature_bank.append(F.normalize(feature, dim=1))
+            if self.hparams.stacked == 2:
+                self.test_feature_bank_s.append(F.normalize(s_feature, dim=1))
+            self.test_label_bank.append(y)
 
     def test_step(self, batch, batch_idx, dataloader_idx):
 
@@ -209,28 +289,49 @@ class SSLLinearEval(pl.LightningModule):
                 x, y = batch
 
             with torch.no_grad():
-                _, feats = self.encoder(x)
+                z, feats = self.encoder(x)
                 feats = feats.view(feats.size(0), -1)
                 logits = self.lin_head(feats)
+                if self.hparams.stacked == 2:
+                    s = z.detach().clone()
+                    s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(
+                        self.hparams.batch_size // 4, 3, 32, 32)
+                    _, s_feats = self.s_encoder(s)
+                    s_feats = s_feats.view(s_feats.size(0), -1)
+                    s_logits = self.lin_head(s_feats)
 
             # Compute loss and metrics
             loss = self.criterion(logits, y)
             acc = self.accuracy(F.softmax(logits), y)
             t5 = self.top5(logits, y)
 
+            s_acc = 0
+            if self.hparams.stacked == 2:
+                s_loss = self.criterion(s_logits, y)
+                s_acc = self.accuracy(F.softmax(s_logits), y)
+                s_t5 = self.top5(s_logits, y)
+
             # Progress Bar
-            self.log_dict({'test_acc': acc, 'test_loss': loss, 'test_t5': t5}, sync_dist=True)
+            self.log_dict({'test_acc': acc, 'test_acc_s': s_acc, 'test_loss': loss, 'test_t5': t5}, sync_dist=True)
 
             # Logging
             if rank_zero_check():
                 self.logger.experiment["ft_test/loss_step"].log(loss.item())
                 self.logger.experiment["ft_test/acc_step"].log(acc.item())
                 self.logger.experiment["ft_test/t5_step"].log(t5)
-            
+                if self.hparams.stacked == 2:
+                    self.logger.experiment["ft_test/s_loss_step"].log(s_loss.item())
+                    self.logger.experiment["ft_test/s_acc_step"].log(s_acc.item())
+                    self.logger.experiment["ft_test/s_t5_step"].log(s_t5)
+
             # Global Metrics
             self.test_loss.append(loss.item())
             self.test_acc.append(acc.item())
             self.test_t5.append(t5)
+            if self.hparams.stacked == 2:
+                self.test_loss_s.append(s_loss.item())
+                self.test_acc_s.append(s_acc.item())
+                self.test_t5_s.append(s_t5)
 
     def test_epoch_end(self, output) -> None:
         # Compute final global metrics and plot visualisation of classification space
@@ -240,29 +341,50 @@ class SSLLinearEval(pl.LightningModule):
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
 
+        if self.hparams.stacked == 2:
+            self.train_feature_bank_s = torch.cat(self.train_feature_bank, dim=0).t().contiguous()
+            self.test_feature_bank_s = torch.cat(self.test_feature_bank, dim=0).contiguous()
+
         total_top1, total_num = 0.0, 0
 
         for feat, label in zip(self.test_feature_bank, self.test_label_bank):
-            
             feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
-            
-            pred_label = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank, self.hparams.num_classes, 200, 0.1)
-            
+
+            pred_label = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
+                                          self.hparams.num_classes, 200, 0.1)
+
             total_num += feat.size(0)
 
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
-            
+
         self.test_knn = total_top1 / total_num * 100
 
         self.log_dict({'test_knn': self.test_knn}, sync_dist=True)
-        
+
+        if self.hparams.stacked == 2:
+            total_top1, total_num = 0.0, 0
+
+            for feat, label in zip(self.test_feature_bank_s, self.test_label_bank):
+                feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
+
+                pred_label = self.knn_predict(feat, self.train_feature_bank_s, self.train_label_bank,
+                                              self.hparams.num_classes, 200, 0.1)
+
+                total_num += feat.size(0)
+
+                total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
+
+            self.test_knn_s = total_top1 / total_num * 100
+
+            self.log_dict({'test_knn_s': self.test_knn_s}, sync_dist=True)
+
         if self.hparams.dataset == 'cifar10':
             # TSNE
             tsne = TSNE(n_components=2, verbose=1, random_state=123)
-            z = tsne.fit_transform(self.test_feature_bank.cpu().detach().numpy()) 
+            z = tsne.fit_transform(self.test_feature_bank.cpu().detach().numpy())
             tx = z[:, 0]
             ty = z[:, 1]
-            
+
             # scale and move the 'x' coordinates so they fit [0; 1] range
             tx_range = (np.max(tx) - np.min(tx))
             tx_from_zero = tx - np.min(tx)
@@ -272,17 +394,45 @@ class SSLLinearEval(pl.LightningModule):
             ty_range = (np.max(ty) - np.min(ty))
             ty_from_zero = ty - np.min(ty)
             ty = ty_from_zero / ty_range
-            
-            classes = ['airplane','automobile','bird','cat','deer','dog','frog','horse','ship','truck']
+
+            classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
             # Define the figure size
-            fig = plt.figure( figsize=(15,15) )
-            scatter = plt.scatter( tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10' )
+            fig = plt.figure(figsize=(15, 15))
+            scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+            plt.savefig("simple.jpg")
             if rank_zero_check():
                 self.logger.experiment['tsne/test_tsne'].upload(neptune.types.File.as_image(fig))
             plt.clf()
             plt.close()
+            if self.hparams.stacked == 2:
+                tsne = TSNE(n_components=2, verbose=1, random_state=123)
+                z = tsne.fit_transform(self.test_feature_bank_s.cpu().detach().numpy())
+                tx = z[:, 0]
+                ty = z[:, 1]
+
+                # scale and move the 'x' coordinates so they fit [0; 1] range
+                tx_range = (np.max(tx) - np.min(tx))
+                tx_from_zero = tx - np.min(tx)
+                tx = tx_from_zero / tx_range
+
+                # scale and move the 'y' coordinates so they fit [0; 1] range
+                ty_range = (np.max(ty) - np.min(ty))
+                ty_from_zero = ty - np.min(ty)
+                ty = ty_from_zero / ty_range
+
+                classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+
+                # Define the figure size
+                fig = plt.figure(figsize=(15, 15))
+                scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
+                plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+                plt.savefig("stacked.jpg")
+                if rank_zero_check:
+                    self.logger.experiment['tsne/test_tsne_stacked'].upload(neptune.types.File.as_image(fig))
+                plt.clf()
+                plt.close()
 
         self.train_feature_bank = []
         self.train_label_bank = []
@@ -300,7 +450,7 @@ class SSLLinearEval(pl.LightningModule):
         print("\n OPTIM :{} \n".format(self.ft_optimiser))
 
         if self.ft_optimiser == 'lars':
-            
+
             param_list = self.lin_head.parameters()
 
             optimizer = LARSSGD(
@@ -339,6 +489,7 @@ class SSLLinearEval(pl.LightningModule):
 
         parser.add_argument('--ft_hyperbolic', dest='ft_hyperbolic', action='store_true',
                             help='hyperbolic (Default: False)')
+        parser.add_argument('--stacked', type=int, default=0)
         parser.set_defaults(ft_hyperbolic=False)
         return parser
 
@@ -349,6 +500,7 @@ class SSLLinearEval(pl.LightningModule):
                     ).sum().item() / y.size(0)
 
         return acc_top5
+
 
 class Identity(torch.nn.Module):
     """

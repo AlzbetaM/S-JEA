@@ -107,9 +107,9 @@ def cli_main():
 
     # Define the model (here I turn on pytorch 2 or not, this is experimental version of pytorch)
     if args.pt2:
-        ft_model = torch.compile(SSLLinearEval(encoder.encoder_online, **args.__dict__))
+        ft_model = torch.compile(SSLLinearEval(encoder, **args.__dict__))
     else:
-        ft_model = SSLLinearEval(encoder.encoder_online, **args.__dict__)
+        ft_model = SSLLinearEval(encoder, **args.__dict__)
 
     # Update logging files
     if rank_zero_check():

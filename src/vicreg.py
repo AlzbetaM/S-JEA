@@ -92,10 +92,10 @@ class VICReg(pl.LightningModule):
         self.val_knn = 0.0
 
         if self.hparams.stacked == 2:
+            self.train_feature_bank_stacked = []
+            self.test_feature_bank_stacked = []
             self.plot_train_feature_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
-            self.plot_train_label_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
             self.plot_test_feature_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
-            self.plot_test_label_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
 
             self.val_knn_stacked = 0.0
 
@@ -204,7 +204,7 @@ class VICReg(pl.LightningModule):
 
             if self.hparams.stacked == 2:
                 self.train_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
-                self.plot_train_feature_bank_stacked.append(embedding.to(embedding.device, dtype=torch.float32))
+                self.plot_train_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
 
         elif idx == 2:
             self.test_feature_bank.append(F.normalize(embedding, dim=1))
@@ -215,7 +215,7 @@ class VICReg(pl.LightningModule):
 
             if self.hparams.stacked == 2:
                 self.test_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
-                self.plot_test_feature_bank_stacked.append(embedding.to(embedding.device, dtype=torch.float32))
+                self.plot_test_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
 
             if len(batch) > 2 and self.hparams.dataset == 'stl10':
                 self.plot_test_path_bank.append(img_path)
@@ -252,8 +252,9 @@ class VICReg(pl.LightningModule):
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
 
-        self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
-        self.test_feature_bank_stacked = torch.cat(self.test_feature_bank_stacked, dim=0).contiguous()
+        if self.hparams.stacked ==2:
+            self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
+            self.test_feature_bank_stacked = torch.cat(self.test_feature_bank_stacked, dim=0).contiguous()
 
         total_top1, total_num = 0.0, 0
 
@@ -268,18 +269,18 @@ class VICReg(pl.LightningModule):
 
         self.val_knn = total_top1 / total_num * 100
 
-        total_top1, total_num = 0.0, 0
+        if self.hparams.stacked == 2:
+            total_top1, total_num = 0.0, 0
+            for feat, label in zip(self.test_feature_bank_stacked, self.test_label_bank):
+                feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
 
-        for feat, label in zip(self.test_feature_bank_stacked, self.test_label_bank):
-            feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
+                pred_label = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
+                                              self.hparams.num_classes, 200, 0.1)
 
-            pred_label = self.knn_predict(feat, self.train_feature_bank_stacekd, self.train_label_bank,
-                                          self.hparams.num_classes, 200, 0.1)
+                total_num += feat.size(0)
+                total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
-            total_num += feat.size(0)
-            total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
-
-        self.val_knn_stacked = total_top1 / total_num * 100
+            self.val_knn_stacked = total_top1 / total_num * 100
 
         self.train_feature_bank = []
         self.train_label_bank = []
@@ -288,10 +289,7 @@ class VICReg(pl.LightningModule):
         self.test_label_bank = []
 
         self.train_feature_bank_stacked = []
-        self.train_label_bank_stacked = []
-
         self.test_feature_bank_stacked = []
-        self.test_label_bank_stacked = []
 
     def knn_predict(self, feature, feature_bank, feature_labels, classes, knn_k, knn_t):
         # compute cos similarity between each feature vector and feature bank ---> [B, N]
