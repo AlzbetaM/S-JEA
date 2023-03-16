@@ -11,6 +11,7 @@
 #SBATCH --mail-user=u25am19@abdn.ac.uk
 #SBATCH --signal=SIGUSR1@90
 #SBATCH --nodelist=egpu01
+#SBATCH --time=08:00:00
 
 module load anaconda3
 source activate pt
@@ -18,6 +19,9 @@ source activate pt
 nvidia-smi
 
 rm logfiles.txt
+srun python src/pretrain.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --num_nodes=1 --devices=2 --stacked=1
+srun python src/finetune.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --num_nodes=1 --devices=2 --stacked=1
 
-srun python src/pretrain.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --num_nodes=1 --devices=2
-srun python src/finetune.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --num_nodes=1 --devices=2
+rm logfiles.txt
+srun python src/pretrain.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --num_nodes=1 --devices=2 --stacked=2
+srun python src/finetune.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --num_nodes=1 --devices=2 --stacked=2

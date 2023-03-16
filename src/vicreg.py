@@ -91,6 +91,14 @@ class VICReg(pl.LightningModule):
 
         self.val_knn = 0.0
 
+        if self.hparams.stacked == 2:
+            self.plot_train_feature_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
+            self.plot_train_label_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
+            self.plot_test_feature_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
+            self.plot_test_label_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
+
+            self.val_knn_stacked = 0.0
+
     def shared_step(self, batch, batch_idx, mode):
         # This statement is for plotting visualisation purposes
         if len(batch) > 2:
@@ -157,9 +165,9 @@ class VICReg(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         # Set to training
-        self.encoder_online.train()
+        '''self.encoder_online.train()
         if self.hparams.stacked == 2:
-            self.encoder_stacked.train()
+            self.encoder_stacked.train()'''
 
         loss = self.shared_step(batch, batch_idx, 'train')
 
@@ -182,14 +190,10 @@ class VICReg(pl.LightningModule):
         # no_grad ensures we don't train
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
-            # not sure what exactly to do here (if anything)
-            # below gives index out of bounds error
-            '''if self.hparams.stacked == 2:
+            if self.hparams.stacked == 2:
                 s = projection.detach().clone()
                 s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size//4, 3, 32, 32)
                 s_projection, s_embedding = self.encoder_stacked(s)
-                projection = torch.cat((projection, s_projection), 0)
-                embedding = torch.cat((embedding, s_embedding), 0)'''
 
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
@@ -198,6 +202,10 @@ class VICReg(pl.LightningModule):
             self.plot_train_feature_bank.append(embedding.to(embedding.device, dtype=torch.float32))
             self.plot_train_label_bank.append(y)
 
+            if self.hparams.stacked == 2:
+                self.train_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
+                self.plot_train_feature_bank_stacked.append(embedding.to(embedding.device, dtype=torch.float32))
+
         elif idx == 2:
             self.test_feature_bank.append(F.normalize(embedding, dim=1))
             self.test_label_bank.append(y)
@@ -205,14 +213,19 @@ class VICReg(pl.LightningModule):
             self.plot_test_feature_bank.append(embedding.to(embedding.device, dtype=torch.float32))
             self.plot_test_label_bank.append(y)
 
+            if self.hparams.stacked == 2:
+                self.test_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
+                self.plot_test_feature_bank_stacked.append(embedding.to(embedding.device, dtype=torch.float32))
+
             if len(batch) > 2 and self.hparams.dataset == 'stl10':
                 self.plot_test_path_bank.append(img_path)
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
         # Set to inference mode
+        '''
         self.encoder_online.eval()
         if self.hparams.stacked == 2:
-            self.encoder_stacked.eval()
+            self.encoder_stacked.eval()'''
 
         if dataloader_idx == 0:
 
@@ -239,6 +252,9 @@ class VICReg(pl.LightningModule):
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
 
+        self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
+        self.test_feature_bank_stacked = torch.cat(self.test_feature_bank_stacked, dim=0).contiguous()
+
         total_top1, total_num = 0.0, 0
 
         for feat, label in zip(self.test_feature_bank, self.test_label_bank):
@@ -252,11 +268,30 @@ class VICReg(pl.LightningModule):
 
         self.val_knn = total_top1 / total_num * 100
 
+        total_top1, total_num = 0.0, 0
+
+        for feat, label in zip(self.test_feature_bank_stacked, self.test_label_bank):
+            feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
+
+            pred_label = self.knn_predict(feat, self.train_feature_bank_stacekd, self.train_label_bank,
+                                          self.hparams.num_classes, 200, 0.1)
+
+            total_num += feat.size(0)
+            total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
+
+        self.val_knn_stacked = total_top1 / total_num * 100
+
         self.train_feature_bank = []
         self.train_label_bank = []
 
         self.test_feature_bank = []
         self.test_label_bank = []
+
+        self.train_feature_bank_stacked = []
+        self.train_label_bank_stacked = []
+
+        self.test_feature_bank_stacked = []
+        self.test_label_bank_stacked = []
 
     def knn_predict(self, feature, feature_bank, feature_labels, classes, knn_k, knn_t):
         # compute cos similarity between each feature vector and feature bank ---> [B, N]
@@ -293,6 +328,12 @@ class VICReg(pl.LightningModule):
             {'params': (p for n, p in self.encoder_online.named_parameters()
                         if ('bias' not in n) and ('bn' not in n) and len(p.shape) != 1)},
             {'params': (p for n, p in self.encoder_online.named_parameters()
+                        if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
+             'WD_exclude': True,
+             'weight_decay': 0},
+            {'params': (p for n, p in self.encoder_stacked.named_parameters()
+                        if ('bias' not in n) and ('bn' not in n) and len(p.shape) != 1)},
+            {'params': (p for n, p in self.encoder_stacked.named_parameters()
                         if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
              'WD_exclude': True,
              'weight_decay': 0}]
