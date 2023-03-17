@@ -121,8 +121,8 @@ class SSLLinearEval(pl.LightningModule):
             z, feats = self.encoder(x)
             if self.hparams.stacked == 2:
                 s = z.detach().clone()
-                s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(
-                    self.hparams.batch_size // 4, 3, 32, 32)
+                s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 512, 3).transpose(0, 2).reshape(
+                    self.hparams.ft_batch_size // 2, 3, 32, 32)
                 _, s_feats = self.s_encoder(s)
 
         # Linear eval head
@@ -185,8 +185,8 @@ class SSLLinearEval(pl.LightningModule):
                 logits = self.lin_head(feats)
                 if self.hparams.stacked == 2:
                     s = z.detach().clone()
-                    s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(
-                        self.hparams.batch_size // 4, 3, 32, 32)
+                    s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 512, 3).transpose(0, 2).reshape(
+                        self.hparams.ft_batch_size // 2, 3, 32, 32)
                     _, s_feats = self.s_encoder(s)
                     s_feats = s_feats.view(s_feats.size(0), -1)
                     s_logits = self.lin_head(s_feats)
@@ -258,8 +258,8 @@ class SSLLinearEval(pl.LightningModule):
             feature = feature.view(feature.size(0), -1)
             if self.hparams.stacked == 2:
                 s = z.detach().clone()
-                s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(
-                    self.hparams.batch_size // 4, 3, 32, 32)
+                s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 512, 3).transpose(0, 2).reshape(
+                    self.hparams.ft_batch_size // 2, 3, 32, 32)
                 _, s_feature = self.s_encoder(s)
                 s_feature = s_feature.view(s_feature.size(0), -1)
 
@@ -294,8 +294,8 @@ class SSLLinearEval(pl.LightningModule):
                 logits = self.lin_head(feats)
                 if self.hparams.stacked == 2:
                     s = z.detach().clone()
-                    s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(
-                        self.hparams.batch_size // 4, 3, 32, 32)
+                    s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 512, 3).transpose(0, 2).reshape(
+                        self.hparams.ft_batch_size // 2, 3, 32, 32)
                     _, s_feats = self.s_encoder(s)
                     s_feats = s_feats.view(s_feats.size(0), -1)
                     s_logits = self.lin_head(s_feats)
@@ -489,7 +489,7 @@ class SSLLinearEval(pl.LightningModule):
 
         parser.add_argument('--ft_hyperbolic', dest='ft_hyperbolic', action='store_true',
                             help='hyperbolic (Default: False)')
-        parser.add_argument('--stacked', type=int, default=0)
+        #parser.add_argument('--stacked', type=int, default=0)
         parser.set_defaults(ft_hyperbolic=False)
         return parser
 
