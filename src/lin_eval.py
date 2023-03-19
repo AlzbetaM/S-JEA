@@ -39,12 +39,12 @@ class SSLLinearEval(pl.LightningModule):
 
         # Define the model and remove the projection head
         self.encoder = encoder.encoder_online
+        self.encoder.fc = Identity()
 
         if self.hparams.stacked == 2:
+            self.enc = encoder.encoder_online
             self.s_encoder = encoder.encoder_stacked
             self.s_encoder.fc = Identity()
-        else:
-            self.encoder.fc = Identity()
 
         emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '101' in self.hparams.model else 96
 
@@ -119,8 +119,9 @@ class SSLLinearEval(pl.LightningModule):
 
         # no_grad ensures we don't train encoder
         with torch.no_grad():
-            z, feats = self.encoder(x)
+            _, feats = self.encoder(x)
             if self.hparams.stacked == 2:
+                z, _ = self.enc(x)
                 s = z.detach().clone()
                 #s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.ft_batch_size, 3, 16, 16)
                 s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
@@ -181,10 +182,11 @@ class SSLLinearEval(pl.LightningModule):
 
             # no_grad ensures we don't train
             with torch.no_grad():
-                z, feats = self.encoder(x)
+                _, feats = self.encoder(x)
                 feats = feats.view(feats.size(0), -1)
                 logits = self.lin_head(feats)
                 if self.hparams.stacked == 2:
+                    z, _ = self.enc(x)
                     s = z.detach().clone()
                     #s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.ft_batch_size, 3, 16, 16)
                     s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
@@ -255,9 +257,10 @@ class SSLLinearEval(pl.LightningModule):
             img, y = batch
 
         with torch.no_grad():
-            z, feature = self.encoder(img)
+            _, feature = self.encoder(img)
             feature = feature.view(feature.size(0), -1)
             if self.hparams.stacked == 2:
+                z, _ = self.enc(img)
                 s = z.detach().clone()
                 #s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.ft_batch_size, 3, 16, 16)
                 s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
@@ -290,10 +293,11 @@ class SSLLinearEval(pl.LightningModule):
                 x, y = batch
 
             with torch.no_grad():
-                z, feats = self.encoder(x)
+                _, feats = self.encoder(x)
                 feats = feats.view(feats.size(0), -1)
                 logits = self.lin_head(feats)
                 if self.hparams.stacked == 2:
+                    z, _ = self.enc(x)
                     s = z.detach().clone()
                     #s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.ft_batch_size, 3, 16, 16)
                     s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
