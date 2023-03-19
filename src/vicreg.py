@@ -128,8 +128,8 @@ class VICReg(pl.LightningModule):
             # change output z from (128, 256) to (32, 3, 32, 32)
             y_i = z_i.detach().clone()
             y_j = z_j.detach().clone()
-            y_i = y_i.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size//4, 3, 32, 32)
-            y_j = y_j.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size//4, 3, 32, 32)
+            y_i = y_i.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size, 3, 16, 16)
+            y_j = y_j.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size, 3, 16, 16)
 
             # stacked encoder
             if self.hparams.stacked == 2:
@@ -192,7 +192,7 @@ class VICReg(pl.LightningModule):
             projection, embedding = self.encoder_online(img)
             if self.hparams.stacked == 2:
                 s = projection.detach().clone()
-                s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size//4, 3, 32, 32)
+                s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size, 3, 16, 16)
                 s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
