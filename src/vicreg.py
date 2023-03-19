@@ -128,8 +128,10 @@ class VICReg(pl.LightningModule):
             # change output z from (128, 256) to (32, 3, 32, 32)
             y_i = z_i.detach().clone()
             y_j = z_j.detach().clone()
-            y_i = y_i.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size, 3, 16, 16)
-            y_j = y_j.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size, 3, 16, 16)
+            #y_i = y_i.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size, 3, 16, 16)
+            #y_j = y_j.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size, 3, 16, 16)
+            y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 16)
+            y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 16)
 
             # stacked encoder
             if self.hparams.stacked == 2:
@@ -192,7 +194,8 @@ class VICReg(pl.LightningModule):
             projection, embedding = self.encoder_online(img)
             if self.hparams.stacked == 2:
                 s = projection.detach().clone()
-                s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size, 3, 16, 16)
+                #s = s.unsqueeze_(-1).expand(self.hparams.batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.batch_size, 3, 16, 16)
+                s = s.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 16)
                 s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
@@ -252,10 +255,6 @@ class VICReg(pl.LightningModule):
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
 
-        if self.hparams.stacked ==2:
-            self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
-            self.test_feature_bank_stacked = torch.cat(self.test_feature_bank_stacked, dim=0).contiguous()
-
         total_top1, total_num = 0.0, 0
 
         for feat, label in zip(self.test_feature_bank, self.test_label_bank):
@@ -270,6 +269,8 @@ class VICReg(pl.LightningModule):
         self.val_knn = total_top1 / total_num * 100
 
         if self.hparams.stacked == 2:
+            self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
+            self.test_feature_bank_stacked = torch.cat(self.test_feature_bank_stacked, dim=0).contiguous()
             total_top1, total_num = 0.0, 0
             for feat, label in zip(self.test_feature_bank_stacked, self.test_label_bank):
                 feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
