@@ -17,7 +17,7 @@ from utils import FTPrintingCallback, rank_zero_check
 from lin_eval import SSLLinearEval
 
 
-def cli_main():
+def cli_main(stacked=False):
 
     # Arguments
     default_config = os.path.join(os.path.split(os.getcwd())[0], 'config.conf')
@@ -105,11 +105,17 @@ def cli_main():
         accumulate_grad_batches=args.ft_accumulate_grad_batches
         )
 
-    # Define the model (here I turn on pytorch 2 or not, this is experimental version of pytorch)
-    if args.pt2:
-        ft_model = torch.compile(SSLLinearEval(encoder, **args.__dict__))
+    if stacked:
+        if args.pt2:
+            ft_model = torch.compile(SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], **args.__dict__))
+        else:
+            ft_model = SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], **args.__dict__)
     else:
-        ft_model = SSLLinearEval(encoder, **args.__dict__)
+        # Define the model (here I turn on pytorch 2 or not, this is experimental version of pytorch)
+        if args.pt2:
+            ft_model = torch.compile(SSLLinearEval(encoder.encoder_online, **args.__dict__))
+        else:
+            ft_model = SSLLinearEval(encoder.encoder_online, **args.__dict__)
 
     # Update logging files
     if rank_zero_check():
@@ -144,5 +150,7 @@ def cli_main():
     
     neptune_logger.experiment.stop()
 
+
 if __name__ == '__main__':
     cli_main()
+    cli_main(True)
