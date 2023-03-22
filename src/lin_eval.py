@@ -40,7 +40,6 @@ class SSLLinearEval(pl.LightningModule):
         self.stacked = stack
         self.logs = ""
         # Define the model and remove the projection head
-<<<<<<< Updated upstream
         self.encoder = encoder.encoder_online
 
         if self.hparams.stacked == 2:
@@ -48,7 +47,6 @@ class SSLLinearEval(pl.LightningModule):
             self.s_encoder.fc = Identity()
         else:
             self.encoder.fc = Identity()
-=======
         if self.stacked:
             self.enc1 = encoder[0]
             self.enc2 = encoder[1]
@@ -57,7 +55,6 @@ class SSLLinearEval(pl.LightningModule):
         else:
             self.enc = encoder
             self.enc.fc = Identity()
->>>>>>> Stashed changes
 
         emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '101' in self.hparams.model else 96
 
@@ -120,16 +117,7 @@ class SSLLinearEval(pl.LightningModule):
 
         # no_grad ensures we don't train encoder
         with torch.no_grad():
-<<<<<<< Updated upstream
-            z, feats = self.encoder(x)
-            if self.hparams.stacked == 2:
-                s = z.detach().clone()
-                #s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.ft_batch_size, 3, 16, 16)
-                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
-                _, s_feats = self.s_encoder(s)
-=======
             _, feats = self.encode(x)
->>>>>>> Stashed changes
 
         # Linear eval head
         feats = feats.view(feats.size(0), -1)
@@ -168,22 +156,9 @@ class SSLLinearEval(pl.LightningModule):
 
             # no_grad ensures we don't train
             with torch.no_grad():
-<<<<<<< Updated upstream
-                z, feats = self.encoder(x)
-                feats = feats.view(feats.size(0), -1)
-                logits = self.lin_head(feats)
-                if self.hparams.stacked == 2:
-                    s = z.detach().clone()
-                    #s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.ft_batch_size, 3, 16, 16)
-                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
-                    _, s_feats = self.s_encoder(s)
-                    s_feats = s_feats.view(s_feats.size(0), -1)
-                    s_logits = self.lin_head(s_feats)
-=======
                 _, feats = self.encode(x)
                 feats = feats.view(feats.size(0), -1)
                 logits = self.lin_head(feats)
->>>>>>> Stashed changes
 
             # Compute loss and metrics
             loss = self.criterion(logits, y)
@@ -234,19 +209,8 @@ class SSLLinearEval(pl.LightningModule):
             img, y = batch
 
         with torch.no_grad():
-<<<<<<< Updated upstream
-            z, feature = self.encoder(img)
-            feature = feature.view(feature.size(0), -1)
-            if self.hparams.stacked == 2:
-                s = z.detach().clone()
-                #s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.ft_batch_size, 3, 16, 16)
-                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
-                _, s_feature = self.s_encoder(s)
-                s_feature = s_feature.view(s_feature.size(0), -1)
-=======
             _, feature = self.encode(img)
             feature = feature.view(feature.size(0), -1)
->>>>>>> Stashed changes
 
         if mode == 'train':
             self.train_feature_bank.append(F.normalize(feature, dim=1))
@@ -270,22 +234,9 @@ class SSLLinearEval(pl.LightningModule):
                 x, y = batch
 
             with torch.no_grad():
-<<<<<<< Updated upstream
-                z, feats = self.encoder(x)
-                feats = feats.view(feats.size(0), -1)
-                logits = self.lin_head(feats)
-                if self.hparams.stacked == 2:
-                    s = z.detach().clone()
-                    #s = s.unsqueeze_(-1).expand(self.hparams.ft_batch_size, 256, 3).transpose(0, 2).reshape(self.hparams.ft_batch_size, 3, 16, 16)
-                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
-                    _, s_feats = self.s_encoder(s)
-                    s_feats = s_feats.view(s_feats.size(0), -1)
-                    s_logits = self.lin_head(s_feats)
-=======
                 _, feats = self.encode(x)
                 feats = feats.view(feats.size(0), -1)
                 logits = self.lin_head(feats)
->>>>>>> Stashed changes
 
             # Compute loss and metrics
             loss = self.criterion(logits, y)
