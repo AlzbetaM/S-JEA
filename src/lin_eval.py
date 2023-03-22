@@ -39,14 +39,7 @@ class SSLLinearEval(pl.LightningModule):
         self.save_hyperparameters()
         self.stacked = stack
         self.logs = ""
-        # Define the model and remove the projection head
-        self.encoder = encoder.encoder_online
-
-        if self.hparams.stacked == 2:
-            self.s_encoder = encoder.encoder_stacked
-            self.s_encoder.fc = Identity()
-        else:
-            self.encoder.fc = Identity()
+        # Define the model and remove the projection headu8
         if self.stacked:
             self.enc1 = encoder[0]
             self.enc2 = encoder[1]
