@@ -39,26 +39,29 @@ class SSLLinearEval(pl.LightningModule):
         self.save_hyperparameters()
         self.stacked = stack
         self.logs = ""
-        # Define the model and remove the projection headu8
+
+        # Define the model and remove the projection head
+        # Freeze encoder
         if self.stacked:
             self.enc1 = encoder[0]
             self.enc2 = encoder[1]
             self.enc2.fc = Identity()
             self.logs = "_s"
+            for param in self.enc1.parameters():
+                param.requires_grad = False
+            for param in self.enc2.parameters():
+                param.requires_grad = False
         else:
             self.enc = encoder
             self.enc.fc = Identity()
+            for param in self.enc.parameters():
+                param.requires_grad = False
 
         emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '101' in self.hparams.model else 96
-
         print("\n Num Classes: {}".format(num_classes))
 
-        # Define the linear evaluation head
+        # Define the linear evaluation head and train it
         self.lin_head = models.Sup_Head(emb_dim, num_classes)
-
-        # Freeze encoder and train the linear eval head
-        for param in self.encoder.parameters():
-            param.requires_grad = False
         for param in self.lin_head.parameters():
             param.requires_grad = True
 
