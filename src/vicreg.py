@@ -190,8 +190,7 @@ class VICReg(pl.LightningModule):
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
             if self.hparams.stacked == 2:
-                s = projection
-                s = s.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 16)
+                s = projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 16)
                 s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
