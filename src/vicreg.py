@@ -64,9 +64,22 @@ class VICReg(pl.LightningModule):
         fc['relu2'] = torch.nn.ReLU()
         fc['fc3'] = torch.nn.Linear(self.hparams.h_units, self.hparams.o_units)
 
+        self.stacked_dim = 16
+        if self.hparams.projection == "both":
+            self.encoder_online.fc = torch.nn.Sequential(fc)
+            self.encoder_stacked = copy.deepcopy(self.encoder_online)
+        elif self.hparams.projection == "simple":
+            self.encoder_stacked = copy.deepcopy(self.encoder_online)
+            self.encoder_online.fc = torch.nn.Sequential(fc)
+        elif self.hparams.projection == "stacked":
+            self.encoder_stacked = copy.deepcopy(self.encoder_online)
+            self.encoder_stacked.fc = torch.nn.Sequential(fc)
+            self.stacked_dim = 32
+        else:
+            self.encoder_stacked = copy.deepcopy(self.encoder_online)
+            self.stacked_dim = 32
+
         # Assign the projection head to the encoder
-        self.encoder_online.fc = torch.nn.Sequential(fc)
-        self.encoder_stacked = copy.deepcopy(self.encoder_online)
 
         self.num_batches = num_batches
         self.effective_bsz = effective_bsz
@@ -127,8 +140,8 @@ class VICReg(pl.LightningModule):
 
         if self.hparams.stacked == 1 or self.hparams.stacked == 2:
             # change output z_i from (batch_size, 256) to (batch_size, 3, 16, 16)
-            y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 16)
-            y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 16)
+            y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
+            y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
 
             # stacked encoder
             if self.hparams.stacked == 2:
@@ -190,7 +203,7 @@ class VICReg(pl.LightningModule):
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
             if self.hparams.stacked == 2:
-                s = projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 16)
+                s = projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
                 s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
@@ -426,7 +439,9 @@ class VICReg(pl.LightningModule):
         parser.set_defaults(save_checkpoint=False)
         parser.add_argument('--print_freq', type=int, default=1)
 
+        # newly added to help switching between code versions
         parser.add_argument('--stacked', type=int, default=0)
+        parser.add_argument('--projection', type=str, default='both')
 
         return parser
 
