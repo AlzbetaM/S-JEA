@@ -150,7 +150,9 @@ def cli_main(stacked=False):
     
     neptune_logger.experiment.stop()
 
+    if args.stacked == 2:
+        cli_main(True)
+
 
 if __name__ == '__main__':
     cli_main()
-    cli_main(True)
