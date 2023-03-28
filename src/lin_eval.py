@@ -38,7 +38,6 @@ class SSLLinearEval(pl.LightningModule):
         # Command line args
         self.save_hyperparameters()
         self.stacked = stack
-        self.logs = ""
 
         # Define the model and remove the projection head
         # Freeze encoder
@@ -46,7 +45,6 @@ class SSLLinearEval(pl.LightningModule):
             self.enc1 = encoder[0]
             self.enc2 = encoder[1]
             self.enc2.fc = Identity()
-            self.logs = "_s"
             for param in self.enc1.parameters():
                 param.requires_grad = False
             for param in self.enc2.parameters():
@@ -97,15 +95,16 @@ class SSLLinearEval(pl.LightningModule):
         self.test_knn = 0.0
 
     def encode(self, x):
-        if self.stacked:
-            s, _ = self.enc1(x)
-            if self.hparams.projection == "both" or self.hparams.projection == "simple":
-                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
+        with torch.no_grad():
+            if self.stacked:
+                s, _ = self.enc1(x)
+                if self.hparams.projection == "both" or self.hparams.projection == "simple":
+                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
+                else:
+                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 32)
+                return self.enc2(s)
             else:
-                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 32)
-            return self.enc2(s)
-        else:
-            return self.enc(x)
+                return self.enc(x)
 
     def training_step(self, batch, batch_idx):
         # This statement is for plotting visualisation purposes
@@ -133,9 +132,9 @@ class SSLLinearEval(pl.LightningModule):
 
         # Logging
         if rank_zero_check():
-            self.logger.experiment["ft_train/loss_step"+ self.logs].log(loss.item())
-            self.logger.experiment["ft_train/acc_step"+ self.logs].log(acc.item())
-            self.logger.experiment["ft_train/t5_step"+ self.logs].log(t5)
+            self.logger.experiment["ft_train/loss_step"].log(loss.item())
+            self.logger.experiment["ft_train/acc_step"].log(acc.item())
+            self.logger.experiment["ft_train/t5_step"].log(t5)
 
         # Global metrics   
         self.train_loss.append(loss.item())
@@ -170,9 +169,9 @@ class SSLLinearEval(pl.LightningModule):
 
             # Logging
             if rank_zero_check():
-                self.logger.experiment["ft_valid/loss_step"+ self.logs].log(loss.item())
-                self.logger.experiment["ft_valid/acc_step"+ self.logs].log(acc.item())
-                self.logger.experiment["ft_valid/t5_step"+ self.logs].log(t5)
+                self.logger.experiment["ft_valid/loss_step"].log(loss.item())
+                self.logger.experiment["ft_valid/acc_step"].log(acc.item())
+                self.logger.experiment["ft_valid/t5_step"].log(t5)
 
             # Global metrics
             self.valid_loss.append(loss.item())
@@ -247,9 +246,9 @@ class SSLLinearEval(pl.LightningModule):
 
             # Logging
             if rank_zero_check():
-                self.logger.experiment["ft_test/loss_step"+ self.logs].log(loss.item())
-                self.logger.experiment["ft_test/acc_step"+ self.logs].log(acc.item())
-                self.logger.experiment["ft_test/t5_step"+ self.logs].log(t5)
+                self.logger.experiment["ft_test/loss_step"].log(loss.item())
+                self.logger.experiment["ft_test/acc_step"].log(acc.item())
+                self.logger.experiment["ft_test/t5_step"].log(t5)
 
             # Global Metrics
             self.test_loss.append(loss.item())
@@ -278,7 +277,7 @@ class SSLLinearEval(pl.LightningModule):
 
         self.test_knn = total_top1 / total_num * 100
 
-        self.log_dict({'test_knn'+ self.logs: self.test_knn}, sync_dist=True)
+        self.log_dict({'test_knn': self.test_knn}, sync_dist=True)
 
         if self.hparams.dataset == 'cifar10':
             # TSNE
@@ -304,9 +303,9 @@ class SSLLinearEval(pl.LightningModule):
 
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-            plt.savefig("plt" + self.logs + ".jpg")
+            plt.savefig("plt.jpg")
             if rank_zero_check():
-                self.logger.experiment['tsne/test_tsne' + self.logs].upload(neptune.types.File.as_image(fig))
+                self.logger.experiment['tsne/test_tsne'].upload(neptune.types.File.as_image(fig))
             plt.clf()
             plt.close()
 

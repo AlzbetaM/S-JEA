@@ -51,6 +51,7 @@ def cli_main(stacked=False):
     args.batch_size = args.ft_batch_size
     
     # Logging
+    x = "Finetune Stacked" if stacked else "Finetune"
     neptune_logger = NeptuneLogger(
             mode=args.mode,
             api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsI"
@@ -58,7 +59,7 @@ def cli_main(stacked=False):
                     "E1LTQyZjktOWMzYS04MDIyNmYyNTIxMGQifQ==",
             project=args.project_name,
             name='Testing',  # Optional,
-            tags=["Finetune", args.tag],  # Optional,
+            tags=[x, args.tag],  # Optional,
             source_files=['**/*.py']
         )
         
@@ -150,7 +151,7 @@ def cli_main(stacked=False):
     
     neptune_logger.experiment.stop()
 
-    if args.stacked == 2:
+    if args.stacked == 2 and not stacked:
         cli_main(True)
 
 
