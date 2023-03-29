@@ -129,16 +129,15 @@ class VICReg(pl.LightningModule):
         z_i, z_j = z_i.float(), z_j.float()
         y_i, y_j = z_i, z_j
 
-        # Compute loss
-        loss_inv = self.invariance_loss(z_i, z_j)
+        if self.hparams.stacked == 0:
+            # Compute loss
+            loss_inv = self.invariance_loss(z_i, z_j)
 
-        loss_var, _ = self.variance_loss(z_i, z_j)
-        loss_cov = self.covariance_loss(z_i, z_j)
+            loss_var, _ = self.variance_loss(z_i, z_j)
+            loss_cov = self.covariance_loss(z_i, z_j)
+            loss = ((self.hparams.inv * loss_inv) + (self.hparams.var * loss_var) + (self.hparams.covar * loss_cov))
 
-        loss = ((self.hparams.inv * loss_inv) + (self.hparams.var * loss_var) + (self.hparams.covar * loss_cov))
-        all_loss = loss
-
-        if self.hparams.stacked == 1 or self.hparams.stacked == 2:
+        elif self.hparams.stacked == 1 or self.hparams.stacked == 2:
             # change output z_i from (batch_size, 256) to (batch_size, 3, 16, 16)
             y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
             y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
@@ -151,14 +150,16 @@ class VICReg(pl.LightningModule):
                 stack_i, _ = self.encoder_online(y_i)
                 stack_j, _ = self.encoder_online(y_j)
 
-            # Stacked loss
-            s_loss_inv = self.invariance_loss(stack_i, stack_j)
-            s_loss_var, _ = self.variance_loss(stack_i, stack_j)
-            s_loss_cov = self.covariance_loss(stack_i, stack_j)
+            x_i = torch.cat((z_i, stack_i), dim=1)
+            x_j = torch.cat((z_j, stack_j), dim=1)
 
-            s_loss = ((self.hparams.inv * s_loss_inv) + (self.hparams.var * s_loss_var) + (
-                        self.hparams.covar * s_loss_cov))
-            all_loss = loss + s_loss
+            # Stacked loss
+            loss_inv = self.invariance_loss(x_i, x_j)
+            loss_var, _ = self.variance_loss(x_i, x_j)
+            loss_cov = self.covariance_loss(x_i, x_j)
+
+            loss = ((self.hparams.inv * loss_inv) + (self.hparams.var * loss_var) + (
+                        self.hparams.covar * loss_cov))
 
         # Logging
         if rank_zero_check() and mode == 'train':
@@ -167,13 +168,7 @@ class VICReg(pl.LightningModule):
             self.logger.experiment["train/loss_cov"].log(loss_cov.item())
             self.logger.experiment["train/loss"].log(loss)
 
-            if self.hparams.stacked == 1 or self.hparams.stacked == 2:
-                self.logger.experiment["train/s_loss_inv"].log(s_loss_inv.item())
-                self.logger.experiment["train/s_loss_var"].log(s_loss_var.item())
-                self.logger.experiment["train/s_loss_cov"].log(s_loss_cov.item())
-                self.logger.experiment["train/s_loss"].log(s_loss)
-
-        return all_loss
+        return loss
 
     def training_step(self, batch, batch_idx):
         # Set to training
