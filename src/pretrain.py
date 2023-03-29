@@ -10,7 +10,7 @@ from configargparse import ArgumentParser
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning import seed_everything
-from neptune.new.integrations.pytorch_lightning import NeptuneLogger
+from neptune.integrations.pytorch_lightning import NeptuneLogger
 
 # My Methods and Classes
 from vicreg import VICReg

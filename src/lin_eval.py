@@ -303,7 +303,10 @@ class SSLLinearEval(pl.LightningModule):
 
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-            plt.savefig("plt.jpg")
+            if self.stacked:
+                plt.savefig("plt_s.jpg")
+            else:
+                plt.savefig("plt.jpg")
             if rank_zero_check():
                 self.logger.experiment['tsne/test_tsne'].upload(neptune.types.File.as_image(fig))
             plt.clf()

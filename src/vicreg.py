@@ -171,11 +171,6 @@ class VICReg(pl.LightningModule):
         return loss
 
     def training_step(self, batch, batch_idx):
-        # Set to training
-        '''self.encoder_online.train()
-        if self.hparams.stacked == 2:
-            self.encoder_stacked.train()'''
-
         loss = self.shared_step(batch, batch_idx, 'train')
 
         # Progress Bar
@@ -228,10 +223,6 @@ class VICReg(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
         # Set to inference mode
-        '''
-        self.encoder_online.eval()
-        if self.hparams.stacked == 2:
-            self.encoder_stacked.eval()'''
 
         if dataloader_idx == 0:
 
