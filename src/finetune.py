@@ -17,7 +17,7 @@ from utils import FTPrintingCallback, rank_zero_check
 from lin_eval import SSLLinearEval
 
 
-def cli_main():
+def cli_main(stacked=False):
 
     # Arguments
     default_config = os.path.join(os.path.split(os.getcwd())[0], 'config.conf')
@@ -51,6 +51,7 @@ def cli_main():
     args.batch_size = args.ft_batch_size
     
     # Logging
+    x = "Finetune Stacked" if stacked else "Finetune"
     neptune_logger = NeptuneLogger(
             mode=args.mode,
             api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsI"
@@ -58,7 +59,7 @@ def cli_main():
                     "E1LTQyZjktOWMzYS04MDIyNmYyNTIxMGQifQ==",
             project=args.project_name,
             name='Testing',  # Optional,
-            tags=["Finetune", args.tag],  # Optional,
+            tags=[x, args.tag],  # Optional,
             source_files=['**/*.py']
         )
         
@@ -105,11 +106,17 @@ def cli_main():
         accumulate_grad_batches=args.ft_accumulate_grad_batches
         )
 
-    # Define the model (here I turn on pytorch 2 or not, this is experimental version of pytorch)
-    if args.pt2:
-        ft_model = torch.compile(SSLLinearEval(encoder, **args.__dict__))
+    if stacked:
+        if args.pt2:
+            ft_model = torch.compile(SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], stack=True, **args.__dict__))
+        else:
+            ft_model = SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], stack=True, **args.__dict__)
     else:
-        ft_model = SSLLinearEval(encoder, **args.__dict__)
+        # Define the model (here I turn on pytorch 2 or not, this is experimental version of pytorch)
+        if args.pt2:
+            ft_model = torch.compile(SSLLinearEval(encoder.encoder_online, **args.__dict__))
+        else:
+            ft_model = SSLLinearEval(encoder.encoder_online, **args.__dict__)
 
     # Update logging files
     if rank_zero_check():
@@ -143,6 +150,10 @@ def cli_main():
     trainer_ft.test(ckpt_path=checkpoint_path, datamodule=ft_dm)  
     
     neptune_logger.experiment.stop()
+
+    if args.stacked == 2 and not stacked:
+        cli_main(True)
+
 
 if __name__ == '__main__':
     cli_main()
