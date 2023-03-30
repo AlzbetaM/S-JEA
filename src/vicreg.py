@@ -122,12 +122,11 @@ class VICReg(pl.LightningModule):
         imgs = [u for u in img_batch]  # Multiliple image views not implemented
 
         # Pass each view to the encoder
-        z_i, _ = self.encoder_online(imgs[0])
-        z_j, _ = self.encoder_online(imgs[1])
+        z_i, _, y_i = self.encoder_online(imgs[0])
+        z_j, _, y_j = self.encoder_online(imgs[1])
 
         # Ensure float32
         z_i, z_j = z_i.float(), z_j.float()
-        y_i, y_j = z_i, z_j
 
         # Compute loss
         loss_inv = self.invariance_loss(z_i, z_j)
@@ -140,8 +139,10 @@ class VICReg(pl.LightningModule):
 
         if self.hparams.stacked == 1 or self.hparams.stacked == 2:
             # change output z_i from (batch_size, 256) to (batch_size, 3, 16, 16)
-            y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
-            y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
+            y_i = y_i.reshape(self.hparams.batch_size, 1, 64, 128)
+            y_j = y_j.reshape(self.hparams.batch_size, 1, 64, 128)
+            y_i = torch.cat((y_i, y_i[:, 0:1, :, :], y_i[:, 0:1, :, :]), dim=1)
+            y_j = torch.cat((y_i, y_i[:, 0:1, :, :], y_i[:, 0:1, :, :]), dim=1)
 
             # stacked encoder
             if self.hparams.stacked == 2:
