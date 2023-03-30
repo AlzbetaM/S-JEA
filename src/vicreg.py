@@ -64,7 +64,6 @@ class VICReg(pl.LightningModule):
         fc['relu2'] = torch.nn.ReLU()
         fc['fc3'] = torch.nn.Linear(self.hparams.h_units, self.hparams.o_units)
 
-        self.stacked_dim = 16
         if self.hparams.projection == "both":
             self.encoder_online.fc = torch.nn.Sequential(fc)
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
@@ -74,10 +73,8 @@ class VICReg(pl.LightningModule):
         elif self.hparams.projection == "stacked":
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
             self.encoder_stacked.fc = torch.nn.Sequential(fc)
-            self.stacked_dim = 32
         else:
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
-            self.stacked_dim = 32
 
         # Assign the projection head to the encoder
 
@@ -122,12 +119,11 @@ class VICReg(pl.LightningModule):
         imgs = [u for u in img_batch]  # Multiliple image views not implemented
 
         # Pass each view to the encoder
-        z_i, _ = self.encoder_online(imgs[0])
-        z_j, _ = self.encoder_online(imgs[1])
+        z_i, y_i = self.encoder_online(imgs[0])
+        z_j, y_j = self.encoder_online(imgs[1])
 
         # Ensure float32
         z_i, z_j = z_i.float(), z_j.float()
-        y_i, y_j = z_i, z_j
 
         # Compute loss
         loss_inv = self.invariance_loss(z_i, z_j)
@@ -140,8 +136,8 @@ class VICReg(pl.LightningModule):
 
         if self.hparams.stacked == 1 or self.hparams.stacked == 2:
             # change output z_i from (batch_size, 256) to (batch_size, 3, 16, 16)
-            y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
-            y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
+            y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 32)
+            y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 32)
 
             # stacked encoder
             if self.hparams.stacked == 2:
@@ -203,7 +199,7 @@ class VICReg(pl.LightningModule):
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
             if self.hparams.stacked == 2:
-                s = projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
+                s = embedding.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, 32)
                 s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
