@@ -97,14 +97,17 @@ class SSLLinearEval(pl.LightningModule):
     def encode(self, x):
         with torch.no_grad():
             if self.stacked:
-                s, _ = self.enc1(x)
+                _, _, s = self.enc1(x)
                 if self.hparams.projection == "both" or self.hparams.projection == "simple":
-                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
+                    s = s.reshape(self.hparams.batch_size, 1, 64, 128)
+                    s = torch.cat((s, s[:, 0:1, :, :], s[:, 0:1, :, :]), dim=1)
                 else:
-                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 32)
-                return self.enc2(s)
+                    s = s.reshape(self.hparams.batch_size, 1, 64, 128)
+                    s = torch.cat((s, s[:, 0:1, :, :], s[:, 0:1, :, :]), dim=1)
+                a, b, _ = self.enc2(s)
             else:
-                return self.enc(x)
+                a, b, _ = self.enc(x)
+            return a, b
 
     def training_step(self, batch, batch_idx):
         # This statement is for plotting visualisation purposes

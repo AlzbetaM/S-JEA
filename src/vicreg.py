@@ -146,11 +146,11 @@ class VICReg(pl.LightningModule):
 
             # stacked encoder
             if self.hparams.stacked == 2:
-                stack_i, _ = self.encoder_stacked(y_i)
-                stack_j, _ = self.encoder_stacked(y_j)
+                stack_i, _, _ = self.encoder_stacked(y_i)
+                stack_j, _, _ = self.encoder_stacked(y_j)
             else:
-                stack_i, _ = self.encoder_online(y_i)
-                stack_j, _ = self.encoder_online(y_j)
+                stack_i, _, _ = self.encoder_online(y_i)
+                stack_j, _, _ = self.encoder_online(y_j)
 
             # Stacked loss
             s_loss_inv = self.invariance_loss(stack_i, stack_j)
@@ -202,9 +202,10 @@ class VICReg(pl.LightningModule):
 
         # no_grad ensures we don't train
         with torch.no_grad():
-            projection, embedding = self.encoder_online(img)
+            projection, embedding, s = self.encoder_online(img)
             if self.hparams.stacked == 2:
-                s = projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
+                s = s.reshape(self.hparams.batch_size, 1, 64, 128)
+                s = torch.cat((s, s[:, 0:1, :, :], s[:, 0:1, :, :]), dim=1)
                 s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
