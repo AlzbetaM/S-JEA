@@ -65,7 +65,9 @@ class VICReg(pl.LightningModule):
         fc['fc3'] = torch.nn.Linear(self.hparams.h_units, self.hparams.o_units)
 
         self.stacked_dim = 16
-        if self.hparams.projection == "both":
+        if self.hparams.stacked == 0:
+            self.encoder_online.fc = torch.nn.Sequential(fc)
+        elif self.hparams.projection == "both":
             self.encoder_online.fc = torch.nn.Sequential(fc)
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
         elif self.hparams.projection == "simple":
