@@ -206,7 +206,7 @@ class VICReg(pl.LightningModule):
             if self.hparams.stacked == 2:
                 s = s.reshape(self.hparams.batch_size, 1, 64, 128)
                 s = torch.cat((s, s[:, 0:1, :, :], s[:, 0:1, :, :]), dim=1)
-                s_projection, s_embedding = self.encoder_stacked(s)
+                s_projection, s_embedding, _ = self.encoder_stacked(s)
 
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
