@@ -142,7 +142,7 @@ class VICReg(pl.LightningModule):
             y_i = y_i.reshape(self.hparams.batch_size, 1, 64, 128)
             y_j = y_j.reshape(self.hparams.batch_size, 1, 64, 128)
             y_i = torch.cat((y_i, y_i[:, 0:1, :, :], y_i[:, 0:1, :, :]), dim=1)
-            y_j = torch.cat((y_i, y_i[:, 0:1, :, :], y_i[:, 0:1, :, :]), dim=1)
+            y_j = torch.cat((y_j, y_j[:, 0:1, :, :], y_j[:, 0:1, :, :]), dim=1)
 
             # stacked encoder
             if self.hparams.stacked == 2:
