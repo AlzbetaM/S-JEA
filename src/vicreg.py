@@ -339,8 +339,9 @@ class VICReg(pl.LightningModule):
             {'params': (p for n, p in self.encoder_online.named_parameters()
                         if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
              'WD_exclude': True,
-             'weight_decay': 0},
-            {'params': (p for n, p in self.encoder_stacked.named_parameters()
+             'weight_decay': 0}]
+        if self.hparams.stacked == 2:
+            param_groups += [{'params': (p for n, p in self.encoder_stacked.named_parameters()
                         if ('bias' not in n) and ('bn' not in n) and len(p.shape) != 1)},
             {'params': (p for n, p in self.encoder_stacked.named_parameters()
                         if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
