@@ -308,11 +308,12 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
+        #(128, 512, 4, 4)
+        #(128, 2, 64, 64)
+        #(128, 3, 16 ,32)
         y = x
         x = self.avgpool(x)
-
         x = torch.flatten(x, 1)
-
         out = self.fc(x)
         return out, x, y
 

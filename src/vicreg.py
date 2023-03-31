@@ -139,10 +139,10 @@ class VICReg(pl.LightningModule):
 
         if self.hparams.stacked == 1 or self.hparams.stacked == 2:
             # change output z_i from (batch_size, 256) to (batch_size, 3, 16, 16)
-            y_i = y_i.reshape(self.hparams.batch_size, 1, 64, 128)
-            y_j = y_j.reshape(self.hparams.batch_size, 1, 64, 128)
-            y_i = torch.cat((y_i, y_i[:, 0:1, :, :], y_i[:, 0:1, :, :]), dim=1)
-            y_j = torch.cat((y_i, y_i[:, 0:1, :, :], y_i[:, 0:1, :, :]), dim=1)
+            y_i = y_i.reshape(self.hparams.batch_size, 2, 64, 64)
+            y_j = y_j.reshape(self.hparams.batch_size, 2, 64, 64)
+            #y_i = torch.cat((y_i, y_i[:, 0:1, :, :], y_i[:, 0:1, :, :]), dim=1)
+            #y_j = torch.cat((y_i, y_i[:, 0:1, :, :], y_i[:, 0:1, :, :]), dim=1)
 
             # stacked encoder
             if self.hparams.stacked == 2:
@@ -204,8 +204,8 @@ class VICReg(pl.LightningModule):
         with torch.no_grad():
             projection, embedding, s = self.encoder_online(img)
             if self.hparams.stacked == 2:
-                s = s.reshape(self.hparams.batch_size, 1, 64, 128)
-                s = torch.cat((s, s[:, 0:1, :, :], s[:, 0:1, :, :]), dim=1)
+                s = s.reshape(self.hparams.batch_size, 2, 64, 64)
+                #s = torch.cat((s, s[:, 0:1, :, :], s[:, 0:1, :, :]), dim=1)
                 s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
