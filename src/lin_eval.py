@@ -281,7 +281,7 @@ class SSLLinearEval(pl.LightningModule):
 
         self.log_dict({'test_knn': self.test_knn}, sync_dist=True)
 
-        if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl':
+        if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
             # TSNE
             tsne = TSNE(n_components=2, verbose=1, random_state=123)
             z = tsne.fit_transform(self.test_feature_bank.cpu().detach().numpy())
