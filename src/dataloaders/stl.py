@@ -34,6 +34,7 @@ class STL_DataModule(LightningDataModule):
         super().__init__(*args, **kwargs)
 
         self.size = (3, 96, 96)
+        self.DATASET = STL10
         self.val_split = val_split
         self.num_workers = num_workers
         self.batch_size = batch_size
@@ -42,9 +43,16 @@ class STL_DataModule(LightningDataModule):
         self.strategy = strategy
         self.subset = subset
 
+        print("\n\n batch_size in dataloader:{}".format(self.batch_size))
+
     @property
     def num_classes(self):
         return 10
+
+
+    def prepare_data(self):
+        self.DATASET(self.data_dir, download=True,
+                     transform=transforms.ToTensor(), **self.extra_args)
 
     def train_dataloader(self):
         
