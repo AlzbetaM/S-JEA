@@ -97,9 +97,13 @@ class SSLLinearEval(pl.LightningModule):
 
     def encode(self, x):
         with torch.no_grad():
+            i = x.size()[2] // 2
+            j = x.size()[3]
+            if self.hparams.projection == "" or self.hparams.projection == "":
+                j = j // 2
             if self.stacked:
                 _, s = self.enc1(x)
-                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 32)
+                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, i, j)
                 return self.enc2(s)
             else:
                 return self.enc(x)
@@ -277,7 +281,7 @@ class SSLLinearEval(pl.LightningModule):
 
         self.log_dict({'test_knn': self.test_knn}, sync_dist=True)
 
-        if self.hparams.dataset == 'cifar10':
+        if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl':
             # TSNE
             tsne = TSNE(n_components=2, verbose=1, random_state=123)
             z = tsne.fit_transform(self.test_feature_bank.cpu().detach().numpy())
@@ -306,6 +310,7 @@ class SSLLinearEval(pl.LightningModule):
                 self.logger.experiment['tsne/test_tsne'].upload(neptune.types.File.as_image(fig))
             plt.clf()
             plt.close()
+
 
         self.train_feature_bank = []
         self.train_label_bank = []
