@@ -34,7 +34,7 @@ class STL_DataModule(LightningDataModule):
         super().__init__(*args, **kwargs)
 
         self.size = (3, 96, 96)
-        #self.DATASET = STL10
+        self.DATASET = STL10
         self.val_split = val_split
         self.num_workers = num_workers
         self.batch_size = batch_size
@@ -47,9 +47,9 @@ class STL_DataModule(LightningDataModule):
     def num_classes(self):
         return 10
 
-    '''def prepare_data(self):
+    def prepare_data(self):
         self.DATASET(self.data_dir, download=True,
-                     transform=transforms.ToTensor(), **self.extra_args)'''
+                     transform=transforms.ToTensor(), **self.extra_args)
 
     def train_dataloader(self):
         
@@ -57,9 +57,9 @@ class STL_DataModule(LightningDataModule):
         transf = self.default_transforms() if self.train_transforms is None else self.train_transforms
 
         # Dataset loader
-        dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'unlabelled'), transform=transf)
-        '''dataset_train = self.DATASET(self.data_dir, split="unlabelled", download=True,
-                               transform=transf, **self.extra_args)'''
+        #dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'unlabelled'), transform=transf)
+        dataset_train = self.DATASET(self.data_dir, split="unlabeled", download=True,
+                               transform=transf, **self.extra_args)
         # Train / Val split  
         # self.data, self.labels = utils.random_split_image_folder(data=self.train_dataset.samples,
         #                                                          labels=self.train_dataset.targets,

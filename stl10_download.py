@@ -50,11 +50,11 @@ def main():
     test_labels = read_labels(TEST_LABEL_PATH)
     test_images = read_all_images(TEST_DATA_PATH)
 
-    unlabelled_images = read_all_images(UNLAB_DATA_PATH)
+    #unlabelled_images = read_all_images(UNLAB_DATA_PATH)
 
     save_images(train_images, train_labels, "train")
     save_images(test_images, test_labels, "test")
-    save_unlabelled_images(unlabelled_images)
+    #save_unlabelled_images(unlabelled_images)
 
 def read_single_image(image_file):
 

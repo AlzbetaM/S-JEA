@@ -103,7 +103,7 @@ class SSLLinearEval(pl.LightningModule):
             if self.hparams.projection == "simple" or self.hparams.projection == "none":
                 j = 32
             if self.stacked:
-                _, s = self.enc1(x)
+                s, _ = self.enc1(x)
                 s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, i, j)
                 return self.enc2(s)
             else:
