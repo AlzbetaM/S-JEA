@@ -14,7 +14,7 @@ DEPTH = 3
 
 SIZE = HEIGHT * WIDTH * DEPTH
 
-DATA_DIR = 'Data/stl10_binary'
+DATA_DIR = 'Data'
 DATA_URL = 'http://ai.stanford.edu/~acoates/stl10/stl10_binary.tar.gz'
 
 TRAIN_DATA_PATH = 'Data/stl10_binary/train_X.bin'
@@ -37,7 +37,7 @@ def download_and_extract():
             sys.stdout.write('\rDownloading %s %.2f%%' % (filename,
                 float(count * block_size) / float(total_size) * 100.0))
             sys.stdout.flush()
-        filepath, _ = urllib.urlretrieve(DATA_URL, filepath, reporthook=_progress)
+        filepath, _ = urllib.request.urlretrieve(DATA_URL, filepath, reporthook=_progress)
         print('Downloaded', filename)
         tarfile.open(filepath, 'r:gz').extractall(dest_directory)
 
