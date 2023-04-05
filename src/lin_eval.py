@@ -93,14 +93,15 @@ class SSLLinearEval(pl.LightningModule):
         self.train_label_bank = []
         self.test_feature_bank = []
         self.test_label_bank = []
+        self.test_path_bank = []
         self.test_knn = 0.0
 
     def encode(self, x):
         with torch.no_grad():
-            i = x.size()[2] // 2
-            j = x.size()[3]
-            if self.hparams.projection == "" or self.hparams.projection == "":
-                j = j // 2
+            i = 16
+            j = 16
+            if self.hparams.projection == "simple" or self.hparams.projection == "none":
+                j = 32
             if self.stacked:
                 _, s = self.enc1(x)
                 s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, i, j)
@@ -219,6 +220,8 @@ class SSLLinearEval(pl.LightningModule):
         elif mode == 'test':
             self.test_feature_bank.append(F.normalize(feature, dim=1))
             self.test_label_bank.append(y)
+            if len(batch) > 2:
+                self.test_path_bank.append(img_path)
 
     def test_step(self, batch, batch_idx, dataloader_idx):
 
@@ -264,6 +267,7 @@ class SSLLinearEval(pl.LightningModule):
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
+        self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
 
         total_top1, total_num = 0.0, 0
 
@@ -305,12 +309,19 @@ class SSLLinearEval(pl.LightningModule):
 
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-            plt.savefig("plt.jpg")
+            if self.stacked:
+                np.savez('s_plot_data.npz', path_bank=self.test_path_bank, label_bank=self.test_label_bank,
+                         ty=ty, tx=tx)
+                plt.savefig("s_plt.jpg")
+            else:
+                np.savez('plot_data.npz',  path_bank=self.test_path_bank, label_bank=self.test_label_bank,
+                         ty=ty, tx=tx)
+                plt.savefig("plt.jpg")
+
             if rank_zero_check():
                 self.logger.experiment['tsne/test_tsne'].upload(neptune.types.File.as_image(fig))
             plt.clf()
             plt.close()
-
 
         self.train_feature_bank = []
         self.train_label_bank = []

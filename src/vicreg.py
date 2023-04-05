@@ -64,6 +64,8 @@ class VICReg(pl.LightningModule):
         fc['relu2'] = torch.nn.ReLU()
         fc['fc3'] = torch.nn.Linear(self.hparams.h_units, self.hparams.o_units)
 
+        self.x = 16
+        self.y = 16
         if self.hparams.stacked != 2:
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.projection == "both":
@@ -72,14 +74,13 @@ class VICReg(pl.LightningModule):
         elif self.hparams.projection == "simple":
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
             self.encoder_online.fc = torch.nn.Sequential(fc)
+            self.y = 32
         elif self.hparams.projection == "stacked":
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
             self.encoder_stacked.fc = torch.nn.Sequential(fc)
         else:
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
-
-        self.x = 0
-        self.y = 0
+            self.y = 32
         # Assign the projection head to the encoder
 
         self.num_batches = num_batches
@@ -121,11 +122,6 @@ class VICReg(pl.LightningModule):
             img_batch, _ = batch
 
         imgs = [u for u in img_batch]  # Multiliple image views not implemented
-
-        self.x = imgs[0].size()[2]//2
-        self.y = imgs[0].size()[3]
-        if self.hparams.projection == "" or self.hparams.projection == "":
-            self.y = self.y//2
 
         # Pass each view to the encoder
         z_i, _ = self.encoder_online(imgs[0])
