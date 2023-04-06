@@ -100,7 +100,7 @@ class SSLLinearEval(pl.LightningModule):
         with torch.no_grad():
             i = 16
             j = 16
-            if self.hparams.projection == "simple" or self.hparams.projection == "none":
+            if self.hparams.projection == "stacked" or self.hparams.projection == "none":
                 j = 32
             if self.stacked:
                 s, _ = self.enc1(x)
@@ -267,7 +267,7 @@ class SSLLinearEval(pl.LightningModule):
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
-        self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
+        #self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
 
         total_top1, total_num = 0.0, 0
 
@@ -302,19 +302,24 @@ class SSLLinearEval(pl.LightningModule):
             ty_from_zero = ty - np.min(ty)
             ty = ty_from_zero / ty_range
 
-            classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+            if self.hparams.dataset == 'stl10':
+                classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+            else:
+                classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
             # Define the figure size
             fig = plt.figure(figsize=(15, 15))
 
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-            if self.stacked:
-                np.savez('s_plot_data.npz', path_bank=self.test_path_bank, label_bank=self.test_label_bank,
+            if self.stacked and self.hparams.dataset == 'stl10':
+                np.savez('s_plot_data.npz', path_bank=np.array(self.test_path_bank),
+                         label_bank=self.test_label_bank.cpu().detach().numpy(),
                          ty=ty, tx=tx)
                 plt.savefig("s_plt.jpg")
-            else:
-                np.savez('plot_data.npz',  path_bank=self.test_path_bank, label_bank=self.test_label_bank,
+            elif self.hparams.dataset == 'stl10':
+                np.savez('plot_data.npz', path_bank=np.array(self.test_path_bank),
+                         label_bank=self.test_label_bank.cpu().detach().numpy(),
                          ty=ty, tx=tx)
                 plt.savefig("plt.jpg")
 

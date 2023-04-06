@@ -74,10 +74,10 @@ class VICReg(pl.LightningModule):
         elif self.hparams.projection == "simple":
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
             self.encoder_online.fc = torch.nn.Sequential(fc)
-            self.y = 32
         elif self.hparams.projection == "stacked":
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
             self.encoder_stacked.fc = torch.nn.Sequential(fc)
+            self.y = 32
         else:
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
             self.y = 32
@@ -204,7 +204,7 @@ class VICReg(pl.LightningModule):
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
             if self.hparams.stacked == 2:
-                s = embedding.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
+                s = projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
                 s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:

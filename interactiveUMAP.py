@@ -13,25 +13,26 @@ import numpy as np
 
 
 # data = np.load("s_plot_data.npz")
-data = np.load("plot_data.npz")
+data = np.load("s_plot_data.npz")
 
 tx = data['tx']
 ty = data['ty']
-paths = data['paths_bank']
+paths = data['path_bank'].flatten()
 labels = data['label_bank']
 
+
 color_map = {
-    0: "#E52B50",
-    1: "#9F2B68",
-    2: "#3B7A57",
-    3: "#3DDC84",
-    4: "#FFBF00",
-    5: "#915C83",
-    6: "#008000",
-    7: "#7FFFD4",
-    8: "#E9D66B",
-    9: "#007FFF",
-    10: "#FF0000"}
+    0: "#006400", #dark green
+    1: "#00008B", #dark blue
+    2: "#B03060", #maroon3
+    3: "#FFFF00", #yellow
+    4: "#FF0000", #red
+    5: "#DEB887", #brown
+    6: "#0FF000", #lime
+    7: "#00FFFF", #blue
+    8: "#FF00FF", #pink
+    9: "#6495ED", #light blue
+    10: "#000000"}#black
 
 class_names = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
 colors = [color_map[label] for label in labels]
@@ -45,12 +46,12 @@ fig.update_traces(
 fig.update_layout(
     xaxis=dict(range=[-1.1, 1.1]),
     yaxis=dict(range=[-1.1, 1.1]),
-    width=800, height=800,
+    width=1100, height=1100,
     plot_bgcolor="white",
     yaxis_showticklabels=False,
     xaxis_showticklabels=False,
     yaxis_visible=False,
-    xaxis_visible=False)
+    xaxis_visible=False,)
 
 # fig.show()
 # Set up the app now
@@ -92,6 +93,8 @@ def display_hover(hoverData):
 
     img_name = image_path.split('/')[-1]
     class_id = image_path.split('/')[-2]
+    if class_id == "10":
+        class_id = 0
     
     
     children = [
