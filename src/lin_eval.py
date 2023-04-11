@@ -222,7 +222,11 @@ class SSLLinearEval(pl.LightningModule):
             self.test_feature_bank.append(F.normalize(feature, dim=1))
             self.test_label_bank.append(y)
             if len(batch) > 2:
-                self.test_path_bank.append(img_path)
+                for i in range(len(img_path)):
+                    img_name = img_path[i].split('/')[-1][:-4]
+                    class_id = img_path[i].split('/')[-2]
+                    img_path[i] = [int(class_id), int(img_name)]
+                self.test_path_bank.append(torch.Tensor(img_path))
 
     def test_step(self, batch, batch_idx, dataloader_idx):
 
@@ -312,19 +316,15 @@ class SSLLinearEval(pl.LightningModule):
             fig = plt.figure(figsize=(15, 15))
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-            if self.stacked and self.hparams.dataset == 'stl10':
-                nm = 's_plot_data.npz'
-                np.savez(nm, path_bank=np.array(self.test_path_bank),
+            if self.hparams.dataset == 'stl10':
+                if self.stacked:
+                    nm = 's_plot_data.npz'
+                else:
+                    nm = 'plot_data.npz'
+                np.savez(nm, path_bank=self.test_path_bank.cpu().detach().numpy(),
                          label_bank=self.test_label_bank.cpu().detach().numpy(),
                          ty=ty, tx=tx)
-                plt.savefig("s_plt.jpg")
-            elif self.hparams.dataset == 'stl10':
-                nm = 'plot_data.npz'
-                np.savez(nm, path_bank=np.array(self.test_path_bank),
-                         label_bank=self.test_label_bank.cpu().detach().numpy(),
-                         ty=ty, tx=tx)
-                plt.savefig("plt.jpg")
-
+                
             if rank_zero_check():
                 self.logger.experiment['tsne/test_tsne'].upload(neptune.types.File.as_image(fig))
             plt.clf()

@@ -87,7 +87,7 @@ def cli_main(stacked=False):
     if args.strategy == 'ddp':
         args.effective_bsz = args.ft_batch_size * args.num_nodes * args.devices
     elif args.strategy == 'ddp2':
-            args.effective_bsz = args.ft_batch_size * args.num_nodes
+        args.effective_bsz = args.ft_batch_size * args.num_nodes
     else:
         args.effective_bsz = args.ft_batch_size
 
