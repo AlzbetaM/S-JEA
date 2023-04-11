@@ -17,6 +17,7 @@ import network as models
 from optimiser import LARSSGD
 import neptune
 from utils import rank_zero_check
+import os
 
 
 class SSLLinearEval(pl.LightningModule):
@@ -267,7 +268,7 @@ class SSLLinearEval(pl.LightningModule):
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
-        #self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
+        self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
 
         total_top1, total_num = 0.0, 0
 
@@ -309,16 +310,17 @@ class SSLLinearEval(pl.LightningModule):
 
             # Define the figure size
             fig = plt.figure(figsize=(15, 15))
-
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
             if self.stacked and self.hparams.dataset == 'stl10':
-                np.savez('s_plot_data.npz', path_bank=np.array(self.test_path_bank),
+                nm = 's_plot_data.npz'
+                np.savez(nm, path_bank=np.array(self.test_path_bank),
                          label_bank=self.test_label_bank.cpu().detach().numpy(),
                          ty=ty, tx=tx)
                 plt.savefig("s_plt.jpg")
             elif self.hparams.dataset == 'stl10':
-                np.savez('plot_data.npz', path_bank=np.array(self.test_path_bank),
+                nm = 'plot_data.npz'
+                np.savez(nm, path_bank=np.array(self.test_path_bank),
                          label_bank=self.test_label_bank.cpu().detach().numpy(),
                          ty=ty, tx=tx)
                 plt.savefig("plt.jpg")
@@ -330,10 +332,10 @@ class SSLLinearEval(pl.LightningModule):
 
         self.train_feature_bank = []
         self.train_label_bank = []
-        self.train_label_bank = []
 
         self.test_feature_bank = []
         self.test_label_bank = []
+        self.test_path_bank = []
 
     def configure_optimizers(self):
 
