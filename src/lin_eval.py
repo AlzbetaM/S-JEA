@@ -267,12 +267,17 @@ class SSLLinearEval(pl.LightningModule):
 
     def test_epoch_end(self, output) -> None:
         # Compute final global metrics and plot visualisation of classification space
-
         self.train_feature_bank = torch.cat(self.train_feature_bank, dim=0).t().contiguous()
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
         self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
+
+        self.train_feature_bank = self.all_gather(self.train_feature_bank).squeeze(0)
+        self.test_feature_bank = self.all_gather(self.test_feature_bank).squeeze(0)
+        self.train_label_bank = self.all_gather(self.train_label_bank).squeeze(0)
+        self.test_label_bank = self.all_gather(self.test_label_bank).squeeze(0)
+        self.test_path_bank = self.all_gather(self.test_path_bank).squeeze(0)
 
         total_top1, total_num = 0.0, 0
 
@@ -324,7 +329,7 @@ class SSLLinearEval(pl.LightningModule):
                 np.savez(nm, path_bank=self.test_path_bank.cpu().detach().numpy(),
                          label_bank=self.test_label_bank.cpu().detach().numpy(),
                          ty=ty, tx=tx)
-                
+
             if rank_zero_check():
                 self.logger.experiment['tsne/test_tsne'].upload(neptune.types.File.as_image(fig))
             plt.clf()

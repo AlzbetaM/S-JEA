@@ -14,30 +14,20 @@ import numpy as np
 
 
 # data = np.load("Data/plot_data.npz")
-data = np.load("Data/s_plot_data.npz")
+data = np.load("Data/t2_plot_data.npz")
+#data0 = np.load("Data/test_s_plot_data0.npz")
+
 
 tx = data['tx']
 ty = data['ty']
-paths = data['path_bank'].flatten()
+p = data['path_bank'].reshape(8000, 2)
+
+print(p.shape)
 labels = data['label_bank']
 
-for i in range(len(paths)):
-    index = paths[i].find('Data')
-    paths[i] = paths[i][index:]
-
-
-'''color_map = {
-    0: "#006400", #dark green
-    1: "#00008B", #dark blue
-    2: "#B03060", #maroon3
-    3: "#FFFF00", #yellow
-    4: "#FF0000", #red
-    5: "#DEB887", #brown
-    6: "#0FF000", #lime
-    7: "#00FFFF", #blue
-    8: "#FF00FF", #pink
-    9: "#6495ED", #light blue
-    10: "#000000"}#black'''
+paths = []
+for i in range(len(p)):
+    paths += ['Data/test/' + str(int(p[i][0])) + '/' + str(int(p[i][1])) + '.png']
 
 class_names = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
 #colors = [color_map[label] for label in labels]
