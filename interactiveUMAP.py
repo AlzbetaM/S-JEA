@@ -12,36 +12,37 @@ from configargparse import ArgumentParser
 
 import numpy as np
 
+# This is done specifically for the set stl10 ran on 2 gpus.
+# More general plotting can be used for any number of gpus and sets, by changing few parameters
 
-# data = np.load("Data/plot_data.npz")
-data = np.load("Data/t2_plot_data.npz")
-#data0 = np.load("Data/test_s_plot_data0.npz")
+# load saved data
+data = np.load("Data/pleasework.npz")
 
-
+# load each array ( making sure they are of correct type
 tx = data['tx']
 ty = data['ty']
-p = data['path_bank'].reshape(8000, 2)
+paths = data['path_bank'].astype(int)
+labels = data['label_bank'].astype(int)
 
-print(p.shape)
-labels = data['label_bank']
-
-paths = []
-for i in range(len(p)):
-    paths += ['Data/test/' + str(int(p[i][0])) + '/' + str(int(p[i][1])) + '.png']
-
+# two definitions of class names based on ordering
+# this is defined in labels as 10, 1, 2, 3, 4, 5, 6, 7, 8, 9
+# i.e. for indexing convert 10 to 0
 class_names = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
-#colors = [color_map[label] for label in labels]
-clas = ["airplane", "truck", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
-labels_real = [clas[label] for label in labels]
+# as the files are ordered alphabeticaly, the order the testing on the classes is executed is
+# 1, 10, 2, 3, 4, 5, 6, 7, 8, 9, i.e., in array labels, 0 corresponds to 1 and 1 corresponds to 10
+class_nm = ["airplane", "truck", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+labels_real = [class_nm[label] for label in labels]
+
+# converting numpy arrays to pandas datasets
+# this way we have legend which can isolate classes for closer inspection
 d = {"tx": tx, "ty": ty, "colors": labels_real}
 df = pd.DataFrame(d)
 
-
+# create scatter plot with legend
 fig = px.scatter(df, x="tx", y="ty", color="colors")
 fig.update_traces(
     hoverinfo="none",
     hovertemplate=None,
-    #marker=dict(size=5, color=colors),
     showlegend=True)
 
 fig.update_layout(
@@ -73,9 +74,18 @@ app.layout = html.Div(
 def display_hover(hoverData):
     if hoverData is None:
         return False, no_update, no_update, no_update
-    # Load image with pillow
-    # image_path = '/home/msl/Pictures/background.jpg'
-    image_path = paths[hoverData['points'][0]['pointIndex'] + 800*hoverData['points'][0]['curveNumber']]
+    im_index = hoverData['points'][0]['pointIndex']
+    # this is caused by the use of 2 gpus, if only one is used we can have:
+    # p = paths[im_index + 800*hoverData['points'][0]['curveNumber']]
+    if im_index > 400:
+        p = paths[im_index + 400*hoverData['points'][0]['curveNumber'] + 3600]
+    else:
+        p = paths[im_index + 400*hoverData['points'][0]['curveNumber']]
+
+    img_name = p[1]
+    class_id = p[0]
+    # create path from img_name and class_name
+    image_path = 'Data/test/' + str(class_id) + '/' + str(img_name) + '.png'
     im = Image.open(image_path)
 
     # dump it to base64
@@ -92,12 +102,8 @@ def display_hover(hoverData):
     y = hover_data["y"]
     direction = "bottom" if y > 0.5 else "top"
 
-    img_name = image_path.split('/')[-1]
-    class_id = image_path.split('/')[-2]
-    if class_id == "10":
+    if class_id == 10:
         class_id = 0
-    
-    
     children = [
         html.Img(
             src=im_url,

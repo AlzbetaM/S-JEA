@@ -273,11 +273,13 @@ class SSLLinearEval(pl.LightningModule):
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
         self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
 
-        self.train_feature_bank = self.all_gather(self.train_feature_bank).squeeze(0)
-        self.test_feature_bank = self.all_gather(self.test_feature_bank).squeeze(0)
-        self.train_label_bank = self.all_gather(self.train_label_bank).squeeze(0)
-        self.test_label_bank = self.all_gather(self.test_label_bank).squeeze(0)
-        self.test_path_bank = self.all_gather(self.test_path_bank).squeeze(0)
+        self.test_feature_bank = self.all_gather(self.test_feature_bank)
+        self.test_label_bank = self.all_gather(self.test_label_bank)
+        self.test_path_bank = self.all_gather(self.test_path_bank)
+
+        self.test_feature_bank = torch.flatten(self.test_feature_bank, end_dim=1)
+        self.test_label_bank = torch.flatten(self.test_label_bank, end_dim=1)
+        self.test_path_bank = torch.flatten(self.test_path_bank, end_dim=1)
 
         total_top1, total_num = 0.0, 0
 

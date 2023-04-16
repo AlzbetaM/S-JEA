@@ -10,7 +10,7 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=u25am19@abdn.ac.uk
 #SBATCH --signal=SIGUSR1@90
-#SBATCH --nodelist=egpu001
+#SBATCH --nodelist=cgpu003
 
 module load anaconda3
 source activate pt
