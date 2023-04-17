@@ -8,15 +8,14 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from PIL import Image
-from configargparse import ArgumentParser
 
 import numpy as np
 
-# This is done specifically for the set stl10 ran on 2 gpus.
-# More general plotting can be used for any number of gpus and sets, by changing few parameters
+# This is done specifically for the set stl10
+# For any other dataset, we need to change the class names and number of images in a class
 
 # load saved data
-data = np.load("Data/pleasework.npz")
+data = np.load("Data/stl_s_plot_data.npz")
 
 # load each array ( making sure they are of correct type
 tx = data['tx']
@@ -24,19 +23,27 @@ ty = data['ty']
 paths = data['path_bank'].astype(int)
 labels = data['label_bank'].astype(int)
 
-# two definitions of class names based on ordering
-# this is defined in labels as 10, 1, 2, 3, 4, 5, 6, 7, 8, 9
-# i.e. for indexing convert 10 to 0
+
+# sorting the arrays by labels - useful for interactive legend
+def argsort(a, b, c, d):
+    index = a.argsort()
+    return a[index], b[index], c[index], d[index]
+
+
+labels, paths, tx, ty = argsort(labels, paths, tx, ty)
+
+
+# this is defined in labels as 10, 1, 2, 3, 4, 5, 6, 7, 8, 9 (i.e. for indexing convert 10 to 0)
 class_names = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
-# as the files are ordered alphabeticaly, the order the testing on the classes is executed is
+
 # 1, 10, 2, 3, 4, 5, 6, 7, 8, 9, i.e., in array labels, 0 corresponds to 1 and 1 corresponds to 10
 class_nm = ["airplane", "truck", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
 labels_real = [class_nm[label] for label in labels]
 
 # converting numpy arrays to pandas datasets
 # this way we have legend which can isolate classes for closer inspection
-d = {"tx": tx, "ty": ty, "colors": labels_real}
-df = pd.DataFrame(d)
+dictionary = {"tx": tx, "ty": ty, "colors": labels_real}
+df = pd.DataFrame(dictionary)
 
 # create scatter plot with legend
 fig = px.scatter(df, x="tx", y="ty", color="colors")
@@ -74,13 +81,8 @@ app.layout = html.Div(
 def display_hover(hoverData):
     if hoverData is None:
         return False, no_update, no_update, no_update
-    im_index = hoverData['points'][0]['pointIndex']
-    # this is caused by the use of 2 gpus, if only one is used we can have:
-    # p = paths[im_index + 800*hoverData['points'][0]['curveNumber']]
-    if im_index > 400:
-        p = paths[im_index + 400*hoverData['points'][0]['curveNumber'] + 3600]
-    else:
-        p = paths[im_index + 400*hoverData['points'][0]['curveNumber']]
+    # index of the image path in the paths array (800 is the number of elements in each class)
+    p = paths[hoverData['points'][0]['pointIndex'] + 800*hoverData['points'][0]['curveNumber']]
 
     img_name = p[1]
     class_id = p[0]
