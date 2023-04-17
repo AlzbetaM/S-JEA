@@ -28,7 +28,7 @@ class SSLLinearEval(pl.LightningModule):
                  num_classes,
                  model,
                  batch_size,
-                 stack=False,
+                 stack=0,
                  ft_learning_rate: float = 0.2,
                  ft_weight_decay: float = 1.5e-6,
                  ft_epochs: int = 1,
@@ -43,10 +43,16 @@ class SSLLinearEval(pl.LightningModule):
         # Define the model and remove the projection head
 
         # Freeze encoder
-        if self.stacked:
+        if self.stacked >= 1:
             self.enc1 = encoder[0]
             self.enc2 = encoder[1]
-            self.enc2.fc = Identity()
+            if self.stacked == 2:
+                self.enc3 = encoder[2]
+                self.enc3.fc = Identity
+                for param in self.enc3.parameters():
+                    param.requires_grad = False
+            else:
+                self.enc2.fc = Identity()
             for param in self.enc1.parameters():
                 param.requires_grad = False
             for param in self.enc2.parameters():
@@ -99,13 +105,16 @@ class SSLLinearEval(pl.LightningModule):
 
     def encode(self, x):
         with torch.no_grad():
-            i = 16
             j = 16
             if self.hparams.projection == "stacked" or self.hparams.projection == "none":
                 j = 32
-            if self.stacked:
+            if self.stacked >= 1:
                 s, _ = self.enc1(x)
-                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, i, j)
+                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, j)
+                if self.stacked == 2:
+                    s, _ = self.enc2(s)
+                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, j)
+                    return self.enc3(s)
                 return self.enc2(s)
             else:
                 return self.enc(x)

@@ -17,7 +17,7 @@ from utils import FTPrintingCallback, rank_zero_check
 from lin_eval import SSLLinearEval
 
 
-def cli_main(stacked=False):
+def cli_main(stacked=0):
 
     # Arguments
     default_config = os.path.join(os.path.split(os.getcwd())[0], 'config.conf')
@@ -106,11 +106,17 @@ def cli_main(stacked=False):
         accumulate_grad_batches=args.ft_accumulate_grad_batches
         )
 
-    if stacked:
+    if stacked == 2:
         if args.pt2:
-            ft_model = torch.compile(SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], stack=True, **args.__dict__))
+            ft_model = torch.compile(
+                SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked, encoder.encoder_stacked2], stack=2, **args.__dict__))
         else:
-            ft_model = SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], stack=True, **args.__dict__)
+            ft_model = SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked, encoder.encoder_stacked2], stack=2, **args.__dict__)
+    elif stacked == 1:
+        if args.pt2:
+            ft_model = torch.compile(SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], stack=1, **args.__dict__))
+        else:
+            ft_model = SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], stack=1, **args.__dict__)
     else:
         # Define the model (here I turn on pytorch 2 or not, this is experimental version of pytorch)
         if args.pt2:
@@ -151,8 +157,8 @@ def cli_main(stacked=False):
     
     neptune_logger.experiment.stop()
 
-    if args.stacked == 2 and not stacked:
-        cli_main(True)
+    if stacked < args.stacked - 1:
+        cli_main(stacked + 1)
 
 
 if __name__ == '__main__':
