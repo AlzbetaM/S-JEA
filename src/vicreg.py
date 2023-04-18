@@ -180,7 +180,7 @@ class VICReg(pl.LightningModule):
             s_loss_var, _ = self.variance_loss(stack_i, stack_j)
             s_loss_cov = self.covariance_loss(stack_i, stack_j)
 
-            if self.haparams.stacked == 3:
+            if self.hparams.stacked == 3:
                 x_i = stack_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
                 x_j = stack_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
                 stack2_i, _ = self.encoder_stacked(x_i)
@@ -271,7 +271,7 @@ class VICReg(pl.LightningModule):
             self.plot_test_feature_bank.append(embedding.to(embedding.device, dtype=torch.float32))
             self.plot_test_label_bank.append(y)
 
-            if self.hparams.stacked == 2:
+            if self.hparams.stacked >= 2:
                 self.test_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
                 self.plot_test_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
                 if self.hparams.stacked == 3:
