@@ -183,13 +183,16 @@ class VICReg(pl.LightningModule):
             if self.hparams.stacked == 3:
                 x_i = stack_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
                 x_j = stack_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
-                stack2_i, _ = self.encoder_stacked(x_i)
-                stack2_j, _ = self.encoder_stacked(x_j)
+
+                stack2_i, _ = self.encoder_stacked2(x_i)
+                stack2_j, _ = self.encoder_stacked2(x_j)
+
                 s2_loss_inv = self.invariance_loss(stack2_i, stack2_j)
                 s2_loss_var, _ = self.variance_loss(stack2_i, stack2_j)
                 s2_loss_cov = self.covariance_loss(stack2_i, stack2_j)
                 s2_loss = ((self.hparams.inv * s2_loss_inv) + (self.hparams.var * s2_loss_var) + (
                         self.hparams.covar * s2_loss_cov))
+
                 all_loss += s2_loss
 
             s_loss = ((self.hparams.inv * s_loss_inv) + (self.hparams.var * s_loss_var) + (
@@ -248,7 +251,7 @@ class VICReg(pl.LightningModule):
                 s_projection, s_embedding = self.encoder_stacked(s)
                 if self.hparams.stacked == 3:
                     s2 = s_projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
-                    s2_projection, s2_embedding = self.encoder_stacked(s2)
+                    s2_projection, s2_embedding = self.encoder_stacked2(s2)
 
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
@@ -262,7 +265,7 @@ class VICReg(pl.LightningModule):
                 self.plot_train_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
                 if self.hparams.stacked == 3:
                     self.train_feature_bank_stacked2.append(F.normalize(s2_embedding, dim=1))
-                    self.plot_train_feature_bank_stacked2.append(s_embedding.to(s2_embedding.device, dtype=torch.float32))
+                    self.plot_train_feature_bank_stacked2.append(s2_embedding.to(s2_embedding.device, dtype=torch.float32))
 
         elif idx == 2:
             self.test_feature_bank.append(F.normalize(embedding, dim=1))
@@ -276,7 +279,7 @@ class VICReg(pl.LightningModule):
                 self.plot_test_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
                 if self.hparams.stacked == 3:
                     self.test_feature_bank_stacked2.append(F.normalize(s2_embedding, dim=1))
-                    self.plot_test_feature_bank_stacked2.append(s_embedding.to(s2_embedding.device, dtype=torch.float32))
+                    self.plot_test_feature_bank_stacked2.append(s2_embedding.to(s2_embedding.device, dtype=torch.float32))
 
 
             if len(batch) > 2 and self.hparams.dataset == 'stl10':

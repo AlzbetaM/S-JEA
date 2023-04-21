@@ -333,8 +333,10 @@ class SSLLinearEval(pl.LightningModule):
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
             if self.hparams.dataset == 'stl10':
-                if self.stacked:
+                if self.stacked == 1:
                     nm = 's_plot_data.npz'
+                elif self.stacked == 2:
+                    nm = 's2_plot_data.npz'
                 else:
                     nm = 'plot_data.npz'
                 np.savez(nm, path_bank=self.test_path_bank.cpu().detach().numpy(),
