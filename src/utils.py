@@ -80,15 +80,6 @@ class PTPrintingCallback(pl.Callback):
         pl_module.logger.experiment['valid/knn_acc_s3'].log(pl_module.val_knn_stacked3)
         pl_module.logger.experiment['valid/knn_acc_s4'].log(pl_module.val_knn_stacked4)
 
-        # Validation visualisation plotting goes here:
-
-        pl_module.plot_test_label_bank.clear()
-        pl_module.plot_train_label_bank.clear()
-        pl_module.plot_test_feature_bank.clear()
-        pl_module.plot_train_feature_bank.clear()
-        pl_module.plot_test_path_bank.clear()
-        
-
 class FTPrintingCallback(pl.Callback):
     ''' Callback to handle all metric printing and visualisations during self-supervised linear evaluation '''
 

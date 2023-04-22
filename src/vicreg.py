@@ -217,7 +217,7 @@ class VICReg(pl.LightningModule):
             self.test_label_bank.append(y)
             if self.hparams.stacked == 2:
                 self.test_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
-                self.plot_test_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
+
             if len(batch) > 2 and self.hparams.dataset == 'stl10':
                 for i in range(len(img_path)):
                     img_name = img_path[i].split('/')[-1][:-4]
@@ -282,6 +282,8 @@ class VICReg(pl.LightningModule):
         self.val_knn4 = total_top14 / total_num * 100
 
         if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
+            if self.plot_test_path_bank:
+                self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
             self.tsne_plot("pretrain", self.test_feature_bank)
 
         if self.hparams.stacked == 2:
@@ -349,7 +351,6 @@ class VICReg(pl.LightningModule):
 
         if self.hparams.dataset == 'stl10':
             classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
-            self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
             np.savez(dest + name, path_bank=self.plot_test_path_bank.cpu().detach().numpy(),
                      label_bank=self.test_label_bank.cpu().detach().numpy(),
                      ty=ty, tx=tx)

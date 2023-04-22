@@ -375,8 +375,7 @@ class SSLLinearEval(pl.LightningModule):
             raise NotImplementedError('{} not setup.'.format(self.ft_optimiser))
 
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, self.ft_epochs,
-            last_epoch=(self.num_batches / self.world_size) * self.hparams.ft_epochs)
+            optimizer, self.ft_epochs, last_epoch=-1)
 
         return [optimizer], [scheduler]
 
