@@ -15,7 +15,7 @@ import numpy as np
 # For any other dataset, we need to change the class names and number of images in a class
 
 # load saved data
-data = np.load("Data/stl_s_plot_data.npz")
+data = np.load("Data/pretrain.npz")
 
 # load each array ( making sure they are of correct type
 tx = data['tx']

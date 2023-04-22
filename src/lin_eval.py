@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import numpy as np
+from lightning_utilities.core.rank_zero import rank_zero_only
 from sklearn.manifold import TSNE
 from matplotlib import pyplot as plt
 from configargparse import ArgumentParser
@@ -265,21 +266,19 @@ class SSLLinearEval(pl.LightningModule):
             self.test_acc.append(acc.item())
             self.test_t5.append(t5)
 
+    @rank_zero_only
     def test_epoch_end(self, output) -> None:
         # Compute final global metrics and plot visualisation of classification space
         self.train_feature_bank = torch.cat(self.train_feature_bank, dim=0).t().contiguous()
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
-        self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
 
         self.test_feature_bank = self.all_gather(self.test_feature_bank)
         self.test_label_bank = self.all_gather(self.test_label_bank)
-        self.test_path_bank = self.all_gather(self.test_path_bank)
 
         self.test_feature_bank = torch.flatten(self.test_feature_bank, end_dim=1)
         self.test_label_bank = torch.flatten(self.test_label_bank, end_dim=1)
-        self.test_path_bank = torch.flatten(self.test_path_bank, end_dim=1)
 
         total_top1, total_num = 0.0, 0
 
@@ -324,10 +323,14 @@ class SSLLinearEval(pl.LightningModule):
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
             if self.hparams.dataset == 'stl10':
+                self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
+                self.test_path_bank = self.all_gather(self.test_path_bank)
+                self.test_path_bank = torch.flatten(self.test_path_bank, end_dim=1)
+                dest = self.hparams.dataset + "_" + str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
                 if self.stacked:
-                    nm = 's_plot_data.npz'
+                    nm = dest + 's_plot_data.npz'
                 else:
-                    nm = 'plot_data.npz'
+                    nm = dest + 'plot_data.npz'
                 np.savez(nm, path_bank=self.test_path_bank.cpu().detach().numpy(),
                          label_bank=self.test_label_bank.cpu().detach().numpy(),
                          ty=ty, tx=tx)
@@ -372,7 +375,8 @@ class SSLLinearEval(pl.LightningModule):
             raise NotImplementedError('{} not setup.'.format(self.ft_optimiser))
 
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, self.ft_epochs, last_epoch=-1)
+            optimizer, self.ft_epochs,
+            last_epoch=(self.num_batches / self.world_size) * self.hparams.ft_epochs)
 
         return [optimizer], [scheduler]
 

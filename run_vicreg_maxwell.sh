@@ -20,3 +20,4 @@ nvidia-smi
 rm logfiles.txt
 srun python src/pretrain.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --num_nodes=1 --devices=2
 srun python src/finetune.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --num_nodes=1 --devices=2
+
