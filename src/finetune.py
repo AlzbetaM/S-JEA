@@ -51,15 +51,14 @@ def cli_main(stacked=False):
     args.batch_size = args.ft_batch_size
     
     # Logging
-    x = "Finetune Stacked" if stacked else "Finetune"
+    x = "Finetune_S" if stacked else "Finetune"
     neptune_logger = NeptuneLogger(
             mode=args.mode,
             api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsI"
                     "joiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJhYmNlN2NlYS05Y2"
                     "E1LTQyZjktOWMzYS04MDIyNmYyNTIxMGQifQ==",
             project=args.project_name,
-            name='Testing',  # Optional,
-            tags=[x, args.tag],  # Optional,
+            tags=[x, args.tag, args.projection, str(args.stacked), args.dataset],
             source_files=['**/*.py']
         )
         

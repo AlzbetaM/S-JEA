@@ -4,8 +4,8 @@
 #SBATCH --mem=64G # memory pool for all cores
 #SBATCH -o slurm.%j.out # STDOUT
 #SBATCH -e slurm.%j.err # STDERR
-#SBATCH --ntasks-per-node=2
-#SBATCH --gres=gpu:2
+#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:1
 #SBATCH --partition=gpu
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=u25am19@abdn.ac.uk
@@ -18,10 +18,10 @@ source activate pt
 nvidia-smi
 
 rm logfiles.txt
-srun python src/pretrain.py -c=config_maxwell.conf --num_nodes=1 --devices=2
-srun python src/finetune.py -c=config_maxwell.conf --num_nodes=1 --devices=2
+srun python src/pretrain.py -c=config_maxwell.conf --tag=macleod
+srun python src/finetune.py -c=config_maxwell.conf
 
 rm logfiles.txt
-srun python src/pretrain.py -c=config_maxwell.conf --num_nodes=1 --devices=2 --dataset=cifar10
-srun python src/finetune.py -c=config_maxwell.conf --num_nodes=1 --devices=2 --dataset=cifar10
+srun python src/pretrain.py -c=config_maxwell.conf --tag=macleod --dataset=cifar10
+srun python src/finetune.py -c=config_maxwell.conf --tag=macleod --dataset=cifar10
 
