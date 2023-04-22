@@ -331,6 +331,7 @@ class VICReg(pl.LightningModule):
         self.train_label_bank = []
         self.test_feature_bank = []
         self.test_label_bank = []
+        self.plot_test_path_bank = []
 
     def tsne_plot(self, name, features):
         dest = self.hparams.dataset + "_" + str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
