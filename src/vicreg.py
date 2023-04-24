@@ -258,15 +258,15 @@ class VICReg(pl.LightningModule):
             feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
 
             pred_label = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                          self.hparams.num_classes, 200, 0.1)
+                                          self.hparams.num_classes, 80, 0.1)
             pred_label1 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                          self.hparams.num_classes, 100, 0.1)
+                                           self.hparams.num_classes, 100, 0.1)
             pred_label2 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                          self.hparams.num_classes, 300, 0.1)
+                                           self.hparams.num_classes, 130, 0.1)
             pred_label3 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                          self.hparams.num_classes, 400, 0.1)
+                                           self.hparams.num_classes, 160, 0.1)
             pred_label4 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                          self.hparams.num_classes, 800, 0.1)
+                                           self.hparams.num_classes, 200, 0.1)
 
             total_num += feat.size(0)
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
@@ -298,15 +298,15 @@ class VICReg(pl.LightningModule):
                 feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
 
                 pred_label = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                              self.hparams.num_classes, 200, 0.1)
+                                              self.hparams.num_classes, 80, 0.1)
                 pred_label1 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                              self.hparams.num_classes, 100, 0.1)
+                                               self.hparams.num_classes, 100, 0.1)
                 pred_label2 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                              self.hparams.num_classes, 300, 0.1)
+                                               self.hparams.num_classes, 130, 0.1)
                 pred_label3 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                              self.hparams.num_classes, 400, 0.1)
+                                               self.hparams.num_classes, 160, 0.1)
                 pred_label4 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                              self.hparams.num_classes, 800, 0.1)
+                                               self.hparams.num_classes, 200, 0.1)
 
                 total_num += feat.size(0)
                 total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()

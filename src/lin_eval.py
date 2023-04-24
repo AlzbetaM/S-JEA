@@ -58,7 +58,9 @@ class SSLLinearEval(pl.LightningModule):
             for param in self.enc.parameters():
                 param.requires_grad = False
 
-        emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '101' in self.hparams.model else 96
+        emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model \
+            else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model \
+            else 2048 if '101' in self.hparams.model else 96
         print("\n Num Classes: {}".format(num_classes))
 
         # Define the linear evaluation head and train it

@@ -107,7 +107,8 @@ def cli_main(stacked=False):
 
     if stacked:
         if args.pt2:
-            ft_model = torch.compile(SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], stack=True, **args.__dict__))
+            ft_model = torch.compile(SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked],
+                                                   stack=True, **args.__dict__))
         else:
             ft_model = SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], stack=True, **args.__dict__)
     else:
