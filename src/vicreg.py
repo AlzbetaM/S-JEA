@@ -334,7 +334,7 @@ class VICReg(pl.LightningModule):
         self.plot_test_path_bank = []
 
     def tsne_plot(self, name, features):
-        dest = self.hparams.dataset + "_" + str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
+        dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
         tsne = TSNE(n_components=2, verbose=1, random_state=123)
         z = tsne.fit_transform(features.cpu().detach().numpy())
         tx = z[:, 0]

@@ -328,7 +328,7 @@ class SSLLinearEval(pl.LightningModule):
                 self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
                 self.test_path_bank = self.all_gather(self.test_path_bank)
                 self.test_path_bank = torch.flatten(self.test_path_bank, end_dim=1)
-                dest = self.hparams.dataset + "_" + str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
+                dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
                 if self.stacked:
                     nm = dest + 's_plot_data.npz'
                 else:
