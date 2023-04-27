@@ -157,8 +157,8 @@ class VICReg(pl.LightningModule):
                 stack_i, _ = self.encoder_online(y_i)
                 stack_j, _ = self.encoder_online(y_j)
 
-            x_i = torch.cat((z_i, stack_i), dim=1)
-            x_j = torch.cat((z_j, stack_j), dim=1)
+            x_i = torch.cat((z_i, stack_i), dim=self.hparams.combloss)
+            x_j = torch.cat((z_j, stack_j), dim=self.hparams.combloss)
 
             # Stacked loss
             loss_inv = self.invariance_loss(x_i, x_j)
@@ -329,7 +329,7 @@ class VICReg(pl.LightningModule):
         self.plot_test_path_bank = []
 
     def tsne_plot(self, name, features):
-        dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
+        dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_" + str(self.hparams.combloss) + "_"
         tsne = TSNE(n_components=2, verbose=1, random_state=123)
         z = tsne.fit_transform(features.cpu().detach().numpy())
         tx = z[:, 0]
@@ -507,6 +507,7 @@ class VICReg(pl.LightningModule):
         # newly added to help switching between code versions
         parser.add_argument('--stacked', type=int, default=0)
         parser.add_argument('--projection', type=str, default='both')
+        parser.add_argument('--combloss', type=int, default=0)
 
         return parser
 
