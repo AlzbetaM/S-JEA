@@ -146,8 +146,8 @@ class VICReg(pl.LightningModule):
 
         elif self.hparams.stacked == 1 or self.hparams.stacked == 2:
             # change output z_i from (batch_size, 256) to (batch_size, 3, 16, 16)
-            y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
-            y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
+            y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
+            y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.y, self.y)
 
             # stacked encoder
             if self.hparams.stacked == 2:
