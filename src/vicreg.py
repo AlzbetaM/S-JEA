@@ -5,6 +5,9 @@ from configargparse import ArgumentParser
 import collections
 from collections import OrderedDict
 import copy
+from sklearn.manifold import TSNE
+from matplotlib import pyplot as plt
+import neptune
 
 # Torch
 import torch
@@ -50,7 +53,9 @@ class VICReg(pl.LightningModule):
         self.encoder_online.fc = Identity()
 
         # Get the embedding dimensions of the encoders
-        emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '101' in self.hparams.model else 96
+        emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model else \
+            2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model else \
+            2048 if '101' in self.hparams.model else 96
 
         # Define the projection head
         fc = OrderedDict([])
@@ -64,8 +69,12 @@ class VICReg(pl.LightningModule):
         fc['relu2'] = torch.nn.ReLU()
         fc['fc3'] = torch.nn.Linear(self.hparams.h_units, self.hparams.o_units)
 
-        self.stacked_dim = 16
-        if self.hparams.projection == "both":
+        # projection head settings for multiple encoders
+        self.x = 16  # dimension for second encoder input
+        self.y = 16  # dimension for second encoder input
+        if self.hparams.stacked != 2:
+            self.encoder_online.fc = torch.nn.Sequential(fc)
+        elif self.hparams.projection == "both":
             self.encoder_online.fc = torch.nn.Sequential(fc)
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
         elif self.hparams.projection == "simple":
@@ -74,12 +83,10 @@ class VICReg(pl.LightningModule):
         elif self.hparams.projection == "stacked":
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
             self.encoder_stacked.fc = torch.nn.Sequential(fc)
-            self.stacked_dim = 32
+            self.y = 32
         else:
             self.encoder_stacked = copy.deepcopy(self.encoder_online)
-            self.stacked_dim = 32
-
-        # Assign the projection head to the encoder
+            self.y = 32
 
         self.num_batches = num_batches
         self.effective_bsz = effective_bsz
@@ -95,22 +102,22 @@ class VICReg(pl.LightningModule):
         self.train_label_bank = []
         self.test_feature_bank = []
         self.test_label_bank = []
-
-        self.plot_train_feature_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
-        self.plot_train_label_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
-        self.plot_test_feature_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
-        self.plot_test_label_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
-        self.plot_test_path_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
+        self.plot_test_path_bank = []
 
         self.val_knn = 0.0
+        self.val_knn1 = 0.0
+        self.val_knn2 = 0.0
+        self.val_knn3 = 0.0
+        self.val_knn4 = 0.0
 
         if self.hparams.stacked == 2:
             self.train_feature_bank_stacked = []
             self.test_feature_bank_stacked = []
-            self.plot_train_feature_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
-            self.plot_test_feature_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
-
             self.val_knn_stacked = 0.0
+            self.val_knn_stacked1 = 0.0
+            self.val_knn_stacked2 = 0.0
+            self.val_knn_stacked3 = 0.0
+            self.val_knn_stacked4 = 0.0
 
     def shared_step(self, batch, batch_idx, mode):
         # This statement is for plotting visualisation purposes
@@ -119,15 +126,15 @@ class VICReg(pl.LightningModule):
         else:
             img_batch, _ = batch
 
-        imgs = [u for u in img_batch]  # Multiliple image views not implemented
+        imgs = [u for u in img_batch]  # Multiple image views not implemented
 
         # Pass each view to the encoder
         z_i, _ = self.encoder_online(imgs[0])
         z_j, _ = self.encoder_online(imgs[1])
-
+        y_i = z_i
+        y_j = z_j
         # Ensure float32
         z_i, z_j = z_i.float(), z_j.float()
-        y_i, y_j = z_i, z_j
 
         if self.hparams.stacked == 0:
             # Compute loss
@@ -172,10 +179,8 @@ class VICReg(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         loss = self.shared_step(batch, batch_idx, 'train')
-
         # Progress Bar
         self.log_dict({'loss': loss}, prog_bar=True, on_epoch=True, sync_dist=True)
-
         # Logging
         if rank_zero_check():
             self.logger.experiment["train/loss_step"].log(loss.item())
@@ -193,44 +198,34 @@ class VICReg(pl.LightningModule):
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
             if self.hparams.stacked == 2:
-                s = projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, 16, self.stacked_dim)
+                s = projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
                 s_projection, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
             self.train_label_bank.append(y)
-
-            self.plot_train_feature_bank.append(embedding.to(embedding.device, dtype=torch.float32))
-            self.plot_train_label_bank.append(y)
-
             if self.hparams.stacked == 2:
                 self.train_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
-                self.plot_train_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
 
         elif idx == 2:
             self.test_feature_bank.append(F.normalize(embedding, dim=1))
             self.test_label_bank.append(y)
-
-            self.plot_test_feature_bank.append(embedding.to(embedding.device, dtype=torch.float32))
-            self.plot_test_label_bank.append(y)
-
             if self.hparams.stacked == 2:
                 self.test_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
-                self.plot_test_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
 
             if len(batch) > 2 and self.hparams.dataset == 'stl10':
-                self.plot_test_path_bank.append(img_path)
+                for i in range(len(img_path)):
+                    img_name = img_path[i].split('/')[-1][:-4]
+                    class_id = img_path[i].split('/')[-2]
+                    img_path[i] = [int(class_id), int(img_name)]
+                self.plot_test_path_bank.append(torch.Tensor(img_path))
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
-        # Set to inference mode
 
         if dataloader_idx == 0:
-
             loss = self.shared_step(batch, batch_idx, 'val')
-
             # Progress Bar
             self.log_dict({'valid_loss': loss}, prog_bar=True, on_epoch=True, sync_dist=True)
-
             # Logging
             if rank_zero_check():
                 self.logger.experiment["valid/loss_step"].log(loss.item())
@@ -243,48 +238,130 @@ class VICReg(pl.LightningModule):
 
     def validation_epoch_end(self, output) -> None:
         # Compute final global metrics and plot visualisation of embedding space
-
         self.train_feature_bank = torch.cat(self.train_feature_bank, dim=0).t().contiguous()
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
 
         total_top1, total_num = 0.0, 0
+        total_top11 = 0.0
+        total_top12 = 0.0
+        total_top13 = 0.0
+        total_top14 = 0.0
 
         for feat, label in zip(self.test_feature_bank, self.test_label_bank):
             feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
 
             pred_label = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                          self.hparams.num_classes, 200, 0.1)
+                                          self.hparams.num_classes, 80, 0.1)
+            pred_label1 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
+                                           self.hparams.num_classes, 100, 0.1)
+            pred_label2 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
+                                           self.hparams.num_classes, 130, 0.1)
+            pred_label3 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
+                                           self.hparams.num_classes, 160, 0.1)
+            pred_label4 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
+                                           self.hparams.num_classes, 200, 0.1)
 
             total_num += feat.size(0)
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
+            total_top11 += (pred_label1[:, 0].cpu() == label.cpu()).float().sum().item()
+            total_top12 += (pred_label2[:, 0].cpu() == label.cpu()).float().sum().item()
+            total_top13 += (pred_label3[:, 0].cpu() == label.cpu()).float().sum().item()
+            total_top14 += (pred_label4[:, 0].cpu() == label.cpu()).float().sum().item()
 
         self.val_knn = total_top1 / total_num * 100
+        self.val_knn1 = total_top11 / total_num * 100
+        self.val_knn2 = total_top12 / total_num * 100
+        self.val_knn3 = total_top13 / total_num * 100
+        self.val_knn4 = total_top14 / total_num * 100
+
+        if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
+            if self.plot_test_path_bank:
+                self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
+            self.tsne_plot("pretrain", self.test_feature_bank)
 
         if self.hparams.stacked == 2:
             self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
             self.test_feature_bank_stacked = torch.cat(self.test_feature_bank_stacked, dim=0).contiguous()
             total_top1, total_num = 0.0, 0
+            total_top11 = 0.0
+            total_top12 = 0.0
+            total_top13 = 0.0
+            total_top14 = 0.0
             for feat, label in zip(self.test_feature_bank_stacked, self.test_label_bank):
                 feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
 
                 pred_label = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                              self.hparams.num_classes, 200, 0.1)
+                                              self.hparams.num_classes, 80, 0.1)
+                pred_label1 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
+                                               self.hparams.num_classes, 100, 0.1)
+                pred_label2 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
+                                               self.hparams.num_classes, 130, 0.1)
+                pred_label3 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
+                                               self.hparams.num_classes, 160, 0.1)
+                pred_label4 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
+                                               self.hparams.num_classes, 200, 0.1)
 
                 total_num += feat.size(0)
                 total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
+                total_top11 += (pred_label1[:, 0].cpu() == label.cpu()).float().sum().item()
+                total_top12 += (pred_label2[:, 0].cpu() == label.cpu()).float().sum().item()
+                total_top13 += (pred_label3[:, 0].cpu() == label.cpu()).float().sum().item()
+                total_top14 += (pred_label4[:, 0].cpu() == label.cpu()).float().sum().item()
 
             self.val_knn_stacked = total_top1 / total_num * 100
+            self.val_knn_stacked1 = total_top11 / total_num * 100
+            self.val_knn_stacked2 = total_top12 / total_num * 100
+            self.val_knn_stacked3 = total_top13 / total_num * 100
+            self.val_knn_stacked4 = total_top14 / total_num * 100
+
+            if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
+                self.tsne_plot("s_pretrain", self.test_feature_bank_stacked)
+
+            self.train_feature_bank_stacked = []
+            self.test_feature_bank_stacked = []
 
         self.train_feature_bank = []
         self.train_label_bank = []
-
         self.test_feature_bank = []
         self.test_label_bank = []
+        self.plot_test_path_bank = []
 
-        self.train_feature_bank_stacked = []
-        self.test_feature_bank_stacked = []
+    def tsne_plot(self, name, features):
+        dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
+        tsne = TSNE(n_components=2, verbose=1, random_state=123)
+        z = tsne.fit_transform(features.cpu().detach().numpy())
+        tx = z[:, 0]
+        ty = z[:, 1]
+
+        # scale and move the 'x' coordinates so they fit [0; 1] range
+        tx_range = (np.max(tx) - np.min(tx))
+        tx_from_zero = tx - np.min(tx)
+        tx = tx_from_zero / tx_range
+
+        # scale and move the 'y' coordinates so they fit [0; 1] range
+        ty_range = (np.max(ty) - np.min(ty))
+        ty_from_zero = ty - np.min(ty)
+        ty = ty_from_zero / ty_range
+
+        if self.hparams.dataset == 'stl10':
+            classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+            np.savez(dest + name, path_bank=self.plot_test_path_bank.cpu().detach().numpy(),
+                     label_bank=self.test_label_bank.cpu().detach().numpy(),
+                     ty=ty, tx=tx)
+        else:
+            classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+
+        # Define the figure size
+        fig = plt.figure(figsize=(15, 15))
+        scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
+        plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+
+        if rank_zero_check():
+            self.logger.experiment['tsne/' + name].upload(neptune.types.File.as_image(fig))
+        plt.clf()
+        plt.close()
 
     def knn_predict(self, feature, feature_bank, feature_labels, classes, knn_k, knn_t):
         # compute cos similarity between each feature vector and feature bank ---> [B, N]
@@ -323,13 +400,14 @@ class VICReg(pl.LightningModule):
             {'params': (p for n, p in self.encoder_online.named_parameters()
                         if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
              'WD_exclude': True,
-             'weight_decay': 0},
-            {'params': (p for n, p in self.encoder_stacked.named_parameters()
-                        if ('bias' not in n) and ('bn' not in n) and len(p.shape) != 1)},
-            {'params': (p for n, p in self.encoder_stacked.named_parameters()
-                        if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
-             'WD_exclude': True,
              'weight_decay': 0}]
+        if self.hparams.stacked == 2:
+            param_groups += [{'params': (p for n, p in self.encoder_stacked.named_parameters()
+                                         if ('bias' not in n) and ('bn' not in n) and len(p.shape) != 1)},
+                             {'params': (p for n, p in self.encoder_stacked.named_parameters()
+                                         if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
+                              'WD_exclude': True,
+                              'weight_decay': 0}]
 
         if self.hparams.optimiser == 'lars':
             optimizer_euc = LARSSGD(
@@ -350,7 +428,8 @@ class VICReg(pl.LightningModule):
         # Learning rate scheduling (decrease the learning rate during training)
         if self.hparams.warmup_epochs == 0:
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer_euc, (self.num_batches / self.world_size) * self.trainer.max_epochs, last_epoch=-1,
+                optimizer_euc, (self.num_batches / self.world_size) * self.trainer.max_epochs,
+                last_epoch=(self.num_batches / self.world_size) * self.hparams.max_epochs,
                 eta_min=0.002)
         else:
             scheduler = CosineWD_LR_Schedule(
@@ -358,11 +437,11 @@ class VICReg(pl.LightningModule):
                 warmup_steps=(self.num_batches / self.world_size) * self.hparams.warmup_epochs,
                 start_lr=0.0002,
                 ref_lr=lr,
-                last_epoch=-1,
+                last_epoch=(self.num_batches / self.world_size) * self.hparams.max_epochs,
                 final_lr=1.0e-06,
                 ref_wd=self.hparams.weight_decay,
                 final_wd=self.hparams.final_weight_decay,
-                T_max=int(1.25 * self.trainer.max_epochs * self.num_batches))
+                T_max=int(1.25 * self.trainer.max_epochs * (self.num_batches / self.world_size)))
 
         return [optimizer_euc], [{'scheduler': scheduler,
                                   'interval': 'step'}]
