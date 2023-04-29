@@ -18,10 +18,10 @@ source activate pt
 nvidia-smi
 
 rm logfiles.txt
-srun python src/pretrain.py -c=config_maxwell.conf --ft_epochs=300 max_epochs=300 --stacked=1
-srun python src/finetune.py -c=config_maxwell.conf --ft_epochs=300 max_epochs=300 --stacked=1
+srun python src/pretrain.py -c=config_maxwell.conf --projection=simple --combloss=1
+srun python src/finetune.py -c=config_maxwell.conf --projection=simple --combloss=1
 
 rm logfiles.txt
-srun python src/pretrain.py -c=config_maxwell.conf --dataset=cifar10 --stacked=1
-srun python src/finetune.py -c=config_maxwell.conf --dataset=cifar10 --stacked=1
+srun python src/pretrain.py -c=config_maxwell.conf --projection=stacked --combloss=1
+srun python src/finetune.py -c=config_maxwell.conf --projection=stacked --combloss=1
 
