@@ -342,13 +342,14 @@ class VICReg(pl.LightningModule):
 
                 total_num += feat.size(0)
                 total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
-                self.train_feature_bank_stacked = []
-                self.test_feature_bank_stacked = []
+            self.train_feature_bank_stacked = []
+            self.test_feature_bank_stacked = []
 
             self.val_knn_stacked = total_top1 / total_num * 100
             if self.hparams.stacked == 3:
                 self.train_feature_bank_stacked2 = torch.cat(self.train_feature_bank_stacked2, dim=0).t().contiguous()
                 self.test_feature_bank_stacked2 = torch.cat(self.test_feature_bank_stacked2, dim=0).contiguous()
+
                 total_top1, total_num = 0.0, 0
                 for feat, label in zip(self.test_feature_bank_stacked2, self.test_label_bank):
                     feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
