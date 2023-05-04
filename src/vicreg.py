@@ -12,6 +12,10 @@ import torch.nn.functional as F
 from torch.optim import Adam, SGD, AdamW
 import pytorch_lightning as pl
 
+import neptune
+from sklearn.manifold import TSNE
+from matplotlib import pyplot as plt
+
 # My Methods and Classes
 import network as models
 from optimiser import LARSSGD
@@ -283,7 +287,11 @@ class VICReg(pl.LightningModule):
 
 
             if len(batch) > 2 and self.hparams.dataset == 'stl10':
-                self.plot_test_path_bank.append(img_path)
+                for i in range(len(img_path)):
+                    img_name = img_path[i].split('/')[-1][:-4]
+                    class_id = img_path[i].split('/')[-2]
+                    img_path[i] = [int(class_id), int(img_name)]
+                self.plot_test_path_bank.append(torch.Tensor(img_path))
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
         # Set to inference mode
@@ -329,6 +337,10 @@ class VICReg(pl.LightningModule):
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
         self.val_knn = total_top1 / total_num * 100
+        if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
+            if self.plot_test_path_bank:
+                self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
+            self.tsne_plot("pretrain", self.test_feature_bank)
 
         if self.hparams.stacked >= 2:
             self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
@@ -342,10 +354,13 @@ class VICReg(pl.LightningModule):
 
                 total_num += feat.size(0)
                 total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
-            self.train_feature_bank_stacked = []
-            self.test_feature_bank_stacked = []
 
             self.val_knn_stacked = total_top1 / total_num * 100
+            if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
+                self.tsne_plot("pretrain", self.test_feature_bank_stacked)
+
+            self.train_feature_bank_stacked = []
+            self.test_feature_bank_stacked = []
             if self.hparams.stacked == 3:
                 self.train_feature_bank_stacked2 = torch.cat(self.train_feature_bank_stacked2, dim=0).t().contiguous()
                 self.test_feature_bank_stacked2 = torch.cat(self.test_feature_bank_stacked2, dim=0).contiguous()
@@ -361,7 +376,8 @@ class VICReg(pl.LightningModule):
                     total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
                 self.val_knn_stacked2 = total_top1 / total_num * 100
-
+                if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
+                    self.tsne_plot("pretrain", self.test_feature_bank_stacked2)
                 self.train_feature_bank_stacked2 = []
                 self.test_feature_bank_stacked2 = []
 
@@ -370,6 +386,41 @@ class VICReg(pl.LightningModule):
 
         self.test_feature_bank = []
         self.test_label_bank = []
+
+    def tsne_plot(self, name, features):
+        dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
+        tsne = TSNE(n_components=2, verbose=1, random_state=123)
+        z = tsne.fit_transform(features.cpu().detach().numpy())
+        tx = z[:, 0]
+        ty = z[:, 1]
+
+        # scale and move the 'x' coordinates so they fit [0; 1] range
+        tx_range = (np.max(tx) - np.min(tx))
+        tx_from_zero = tx - np.min(tx)
+        tx = tx_from_zero / tx_range
+
+        # scale and move the 'y' coordinates so they fit [0; 1] range
+        ty_range = (np.max(ty) - np.min(ty))
+        ty_from_zero = ty - np.min(ty)
+        ty = ty_from_zero / ty_range
+
+        if self.hparams.dataset == 'stl10':
+            classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+            np.savez(dest + name, path_bank=self.plot_test_path_bank.cpu().detach().numpy(),
+                     label_bank=self.test_label_bank.cpu().detach().numpy(),
+                     ty=ty, tx=tx)
+        else:
+            classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+
+        # Define the figure size
+        fig = plt.figure(figsize=(15, 15))
+        scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
+        plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+
+        if rank_zero_check():
+            self.logger.experiment['tsne/' + name].upload(neptune.types.File.as_image(fig))
+        plt.clf()
+        plt.close()
 
 
     def knn_predict(self, feature, feature_bank, feature_labels, classes, knn_k, knn_t):
