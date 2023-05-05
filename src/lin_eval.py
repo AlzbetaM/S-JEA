@@ -104,8 +104,6 @@ class SSLLinearEval(pl.LightningModule):
         with torch.no_grad():
             if self.stacked:
                 _, _, s = self.enc1(x)
-                s = s.reshape(self.hparams.batch_size, 1, 64, 128)
-                s = torch.cat((s, s[:, 0:1, :, :], s[:, 0:1, :, :]), dim=1)
                 a, b, _ = self.enc2(s)
             else:
                 a, b, _ = self.enc(x)
