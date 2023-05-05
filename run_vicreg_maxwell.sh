@@ -10,17 +10,15 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=u25am19@abdn.ac.uk
 #SBATCH --signal=SIGUSR1@90
-#SBATCH --nodelist=gpu03
+#SBATCH --nodelist=gpu02
 
 module load anaconda3
 source activate pt
 
 nvidia-smi
 
-rm logfiles.txt
-srun python src/pretrain.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf
-srun python src/finetune.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf
+srun python src/finetune.py -c=config_maxwell.conf
 
 rm logfiles.txt
-srun python src/pretrain.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --projection=stacked
-srun python src/finetune.py -c=/uoa/home/u25am19/sharedscratch/VICReg/config_maxwell.conf --projection=stacked
+srun python src/pretrain.py -c=config_maxwell.conf --projection=stacked
+srun python src/finetune.py -c=config_maxwell.conf --projection=stacked
