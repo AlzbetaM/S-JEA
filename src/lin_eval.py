@@ -280,7 +280,6 @@ class SSLLinearEval(pl.LightningModule):
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
-        self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
 
         self.test_feature_bank = self.all_gather(self.test_feature_bank)
 
@@ -329,6 +328,7 @@ class SSLLinearEval(pl.LightningModule):
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
             if self.hparams.dataset == 'stl10':
+                self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
                 self.test_label_bank = self.all_gather(self.test_label_bank)
                 self.test_path_bank = self.all_gather(self.test_path_bank)
                 self.test_label_bank = torch.flatten(self.test_label_bank, end_dim=1)
