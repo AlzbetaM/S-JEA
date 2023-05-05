@@ -69,6 +69,9 @@ class VICReg(pl.LightningModule):
         fc['relu2'] = torch.nn.ReLU()
         fc['fc3'] = torch.nn.Linear(self.hparams.h_units, self.hparams.o_units)
 
+        if self.hparams.stacked == 2:
+            self.encoder_stacked = models.__dict__[self.hparams.model]\
+                (dataset=self.hparams.dataset, norm_layer='bn2d', dim=512)
         # projection head settings for multiple encoders
         self.x = 16  # dimension for second encoder input
         self.y = 16  # dimension for second encoder input
@@ -76,17 +79,11 @@ class VICReg(pl.LightningModule):
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.projection == "both":
             self.encoder_online.fc = torch.nn.Sequential(fc)
-            self.encoder_stacked = copy.deepcopy(self.encoder_online)
+            self.encoder_stacked.fc = torch.nn.Sequential(fc)
         elif self.hparams.projection == "simple":
-            self.encoder_stacked = copy.deepcopy(self.encoder_online)
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.projection == "stacked":
-            self.encoder_stacked = copy.deepcopy(self.encoder_online)
             self.encoder_stacked.fc = torch.nn.Sequential(fc)
-            self.y = 32
-        else:
-            self.encoder_stacked = copy.deepcopy(self.encoder_online)
-            self.y = 32
 
         self.num_batches = num_batches
         self.effective_bsz = effective_bsz
@@ -146,12 +143,7 @@ class VICReg(pl.LightningModule):
 
         # for stacked VICReg
         if self.hparams.stacked == 1 or self.hparams.stacked == 2:
-            # change output z_i from (batch_size, 256) to (batch_size, 3, 16, 16)
-            y_i = y_i.reshape(self.hparams.batch_size, 1, 64, 128)
-            y_j = y_j.reshape(self.hparams.batch_size, 1, 64, 128)
-            y_i = torch.cat((y_i, y_i[:, 0:1, :, :], y_i[:, 0:1, :, :]), dim=1)
-            y_j = torch.cat((y_j, y_j[:, 0:1, :, :], y_j[:, 0:1, :, :]), dim=1)
-
+            # torch.Size([128, 512, 4, 4]))
             # stacked encoder
             if self.hparams.stacked == 2:
                 stack_i, _, _ = self.encoder_stacked(y_i)
