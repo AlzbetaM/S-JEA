@@ -151,7 +151,7 @@ def cli_main(stacked=False):
     
     neptune_logger.experiment.stop()
 
-    if args.stacked == 2 and not stacked:
+    if args.stacked == 1 and not stacked:
         cli_main(True)
 
 

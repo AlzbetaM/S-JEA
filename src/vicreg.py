@@ -69,13 +69,11 @@ class VICReg(pl.LightningModule):
         fc['relu2'] = torch.nn.ReLU()
         fc['fc3'] = torch.nn.Linear(self.hparams.h_units, self.hparams.o_units)
 
-        if self.hparams.stacked == 2:
+        if self.hparams.stacked == 1:
             self.encoder_stacked = models.__dict__[self.hparams.model]\
                 (dataset=self.hparams.dataset, norm_layer='bn2d', dim=512)
-        # projection head settings for multiple encoders
-        self.x = 16  # dimension for second encoder input
-        self.y = 16  # dimension for second encoder input
-        if self.hparams.stacked != 2:
+
+        if self.hparams.stacked == 0:
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.projection == "both":
             self.encoder_online.fc = torch.nn.Sequential(fc)
@@ -107,7 +105,7 @@ class VICReg(pl.LightningModule):
         self.val_knn3 = 0.0
         self.val_knn4 = 0.0
 
-        if self.hparams.stacked == 2:
+        if self.hparams.stacked == 1:
             self.train_feature_bank_stacked = []
             self.test_feature_bank_stacked = []
             self.val_knn_stacked = 0.0
@@ -142,16 +140,12 @@ class VICReg(pl.LightningModule):
         all_loss = loss
 
         # for stacked VICReg
-        if self.hparams.stacked == 1 or self.hparams.stacked == 2:
+        if self.hparams.stacked == 1:
             # torch.Size([128, 512, 4, 4]))
-            # stacked encoder
-            if self.hparams.stacked == 2:
-                stack_i, _, _ = self.encoder_stacked(y_i)
-                stack_j, _, _ = self.encoder_stacked(y_j)
-            else:
-                stack_i, _, _ = self.encoder_online(y_i)
-                stack_j, _, _ = self.encoder_online(y_j)
+            stack_i, _, _ = self.encoder_stacked(y_i)
+            stack_j, _, _ = self.encoder_stacked(y_j)
 
+            stack_i, stack_j = stack_i.float(), stack_j.float()
             # Stacked loss
             s_loss_inv = self.invariance_loss(stack_i, stack_j)
             s_loss_var, _ = self.variance_loss(stack_i, stack_j)
@@ -159,7 +153,7 @@ class VICReg(pl.LightningModule):
 
             s_loss = ((self.hparams.inv * s_loss_inv) + (self.hparams.var * s_loss_var) + (
                     self.hparams.covar * s_loss_cov))
-            all_loss = loss + s_loss
+            all_loss += s_loss
 
         # Logging
         if rank_zero_check() and mode == 'train':
@@ -168,7 +162,7 @@ class VICReg(pl.LightningModule):
             self.logger.experiment["train/loss_cov"].log(loss_cov.item())
             self.logger.experiment["train/loss"].log(loss)
 
-            if self.hparams.stacked == 1 or self.hparams.stacked == 2:
+            if self.hparams.stacked == 1:
                 self.logger.experiment["train/s_loss_inv"].log(s_loss_inv.item())
                 self.logger.experiment["train/s_loss_var"].log(s_loss_var.item())
                 self.logger.experiment["train/s_loss_cov"].log(s_loss_cov.item())
@@ -195,20 +189,20 @@ class VICReg(pl.LightningModule):
 
         # no_grad ensures we don't train
         with torch.no_grad():
-            projection, embedding, s = self.encoder_online(img)
-            if self.hparams.stacked == 2:
-                s_projection, s_embedding, _ = self.encoder_stacked(s)
+            _, embedding, s = self.encoder_online(img)
+            if self.hparams.stacked == 1:
+                _, s_embedding, _ = self.encoder_stacked(s)
 
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
             self.train_label_bank.append(y)
-            if self.hparams.stacked == 2:
+            if self.hparams.stacked == 1:
                 self.train_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
 
         elif idx == 2:
             self.test_feature_bank.append(F.normalize(embedding, dim=1))
             self.test_label_bank.append(y)
-            if self.hparams.stacked == 2:
+            if self.hparams.stacked == 1:
                 self.test_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
 
             if len(batch) > 2 and self.hparams.dataset == 'stl10':
@@ -274,12 +268,12 @@ class VICReg(pl.LightningModule):
         self.val_knn3 = total_top13 / total_num * 100
         self.val_knn4 = total_top14 / total_num * 100
 
-        if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
+        if self.current_epoch == self.hparams.max_epochs - 1:
             if self.plot_test_path_bank:
                 self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
             self.tsne_plot("pretrain", self.test_feature_bank)
 
-        if self.hparams.stacked == 2:
+        if self.hparams.stacked == 1:
             self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
             self.test_feature_bank_stacked = torch.cat(self.test_feature_bank_stacked, dim=0).contiguous()
             total_top1, total_num = 0.0, 0
@@ -314,7 +308,7 @@ class VICReg(pl.LightningModule):
             self.val_knn_stacked3 = total_top13 / total_num * 100
             self.val_knn_stacked4 = total_top14 / total_num * 100
 
-            if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
+            if self.current_epoch == self.hparams.max_epochs - 1:
                 self.tsne_plot("s_pretrain", self.test_feature_bank_stacked)
 
             self.train_feature_bank_stacked = []
@@ -399,7 +393,7 @@ class VICReg(pl.LightningModule):
                         if ('bias' in n) or ('bn' in n) or (len(p.shape) == 1)),
              'WD_exclude': True,
              'weight_decay': 0}]
-        if self.hparams.stacked == 2:
+        if self.hparams.stacked == 1:
             param_groups += [{'params': (p for n, p in self.encoder_stacked.named_parameters()
                                          if ('bias' not in n) and ('bn' not in n) and len(p.shape) != 1)},
                              {'params': (p for n, p in self.encoder_stacked.named_parameters()

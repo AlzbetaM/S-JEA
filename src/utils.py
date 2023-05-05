@@ -76,7 +76,7 @@ class PTPrintingCallback(pl.Callback):
         pl_module.logger.experiment['valid/knn_acc2'].log(pl_module.val_knn2)
         pl_module.logger.experiment['valid/knn_acc3'].log(pl_module.val_knn3)
         pl_module.logger.experiment['valid/knn_acc4'].log(pl_module.val_knn4)
-        if pl_module.hparams.stacked == 2:
+        if pl_module.hparams.stacked == 1:
             pl_module.logger.experiment['valid/knn_acc_s'].log(pl_module.val_knn_stacked)
             pl_module.logger.experiment['valid/knn_acc_s1'].log(pl_module.val_knn_stacked1)
             pl_module.logger.experiment['valid/knn_acc_s2'].log(pl_module.val_knn_stacked2)

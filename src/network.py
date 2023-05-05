@@ -225,9 +225,6 @@ class ResNet(nn.Module):
 
         # Different model for smaller image size
         if dataset == 'cifar10' or dataset == 'cifar100' or dataset == 'tinyimagenet':
-
-            # CIFAR Stem
-
             self.stem = nn.Sequential()
 
             self.stem.add_module('conv0', nn.Conv2d(dim, self.inplanes, kernel_size=3, stride=1, padding=1,
@@ -235,12 +232,10 @@ class ResNet(nn.Module):
             self.stem.add_module('BN1', norm_l(norm_layer, self.inplanes))
             self.stem.add_module('ReLU1', nn.ReLU(inplace=True))
 
-        # e.g. ImageNet
         else:
-
             self.stem = nn.Sequential()
 
-            self.stem.add_module('conv0', nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
+            self.stem.add_module('conv0', nn.Conv2d(dim, self.inplanes, kernel_size=7, stride=2, padding=3,
                                                     bias=False))
             self.stem.add_module('BN1', norm_l(norm_layer, self.inplanes))
             self.stem.add_module('ReLU1', nn.ReLU(inplace=True))
