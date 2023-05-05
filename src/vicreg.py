@@ -115,28 +115,19 @@ class VICReg(pl.LightningModule):
         self.train_label_bank = []
         self.test_feature_bank = []
         self.test_label_bank = []
-
-        self.plot_train_feature_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
-        self.plot_train_label_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
-        self.plot_test_feature_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
-        self.plot_test_label_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
-        self.plot_test_path_bank = collections.deque(maxlen=2500 // self.hparams.batch_size)
+        self.plot_test_path_bank = []
 
         self.val_knn = 0.0
 
         if self.hparams.stacked >= 2:
             self.train_feature_bank_stacked = []
             self.test_feature_bank_stacked = []
-            self.plot_train_feature_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
-            self.plot_test_feature_bank_stacked = collections.deque(maxlen=2500 // self.hparams.batch_size)
 
             self.val_knn_stacked = 0.0
 
             if self.hparams.stacked == 3:
                 self.train_feature_bank_stacked2 = []
                 self.test_feature_bank_stacked2 = []
-                self.plot_train_feature_bank_stacked2 = collections.deque(maxlen=2500 // self.hparams.batch_size)
-                self.plot_test_feature_bank_stacked2 = collections.deque(maxlen=2500 // self.hparams.batch_size)
 
                 self.val_knn_stacked2 = 0.0
 
@@ -261,30 +252,19 @@ class VICReg(pl.LightningModule):
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
             self.train_label_bank.append(y)
 
-            self.plot_train_feature_bank.append(embedding.to(embedding.device, dtype=torch.float32))
-            self.plot_train_label_bank.append(y)
-
             if self.hparams.stacked >= 2:
                 self.train_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
-                self.plot_train_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
                 if self.hparams.stacked == 3:
                     self.train_feature_bank_stacked2.append(F.normalize(s2_embedding, dim=1))
-                    self.plot_train_feature_bank_stacked2.append(s2_embedding.to(s2_embedding.device, dtype=torch.float32))
 
         elif idx == 2:
             self.test_feature_bank.append(F.normalize(embedding, dim=1))
             self.test_label_bank.append(y)
 
-            self.plot_test_feature_bank.append(embedding.to(embedding.device, dtype=torch.float32))
-            self.plot_test_label_bank.append(y)
-
             if self.hparams.stacked >= 2:
                 self.test_feature_bank_stacked.append(F.normalize(s_embedding, dim=1))
-                self.plot_test_feature_bank_stacked.append(s_embedding.to(s_embedding.device, dtype=torch.float32))
                 if self.hparams.stacked == 3:
                     self.test_feature_bank_stacked2.append(F.normalize(s2_embedding, dim=1))
-                    self.plot_test_feature_bank_stacked2.append(s2_embedding.to(s2_embedding.device, dtype=torch.float32))
-
 
             if len(batch) > 2 and self.hparams.dataset == 'stl10':
                 for i in range(len(img_path)):
@@ -357,7 +337,7 @@ class VICReg(pl.LightningModule):
 
             self.val_knn_stacked = total_top1 / total_num * 100
             if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
-                self.tsne_plot("pretrain", self.test_feature_bank_stacked)
+                self.tsne_plot("pretrain_s", self.test_feature_bank_stacked)
 
             self.train_feature_bank_stacked = []
             self.test_feature_bank_stacked = []
@@ -377,7 +357,7 @@ class VICReg(pl.LightningModule):
 
                 self.val_knn_stacked2 = total_top1 / total_num * 100
                 if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
-                    self.tsne_plot("pretrain", self.test_feature_bank_stacked2)
+                    self.tsne_plot("pretrain_s2", self.test_feature_bank_stacked2)
                 self.train_feature_bank_stacked2 = []
                 self.test_feature_bank_stacked2 = []
 

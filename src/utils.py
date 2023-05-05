@@ -70,14 +70,10 @@ class PTPrintingCallback(pl.Callback):
         
         pl_module.logger.experiment['valid/loss_epoch'].log(loss)
         pl_module.logger.experiment['valid/knn_acc'].log(pl_module.val_knn)
-
-        # Validaiton visualisation plotting goes here:
-
-        pl_module.plot_test_label_bank.clear()
-        pl_module.plot_train_label_bank.clear()
-        pl_module.plot_test_feature_bank.clear()
-        pl_module.plot_train_feature_bank.clear()
-        pl_module.plot_test_path_bank.clear()
+        if pl_module.hparams.stacked >= 2:
+            pl_module.logger.experiment['valid/knn_acc_s'].log(pl_module.val_knn_stacked)
+            if pl_module.hparams.stacked == 3:
+                pl_module.logger.experiment['valid/knn_acc_s2'].log(pl_module.val_knn_stacked2)
         
 
 class FTPrintingCallback(pl.Callback):
