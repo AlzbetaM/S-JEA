@@ -73,6 +73,7 @@ class VICReg(pl.LightningModule):
             self.encoder_stacked = models.__dict__[self.hparams.model]\
                 (dataset=self.hparams.dataset, norm_layer='bn2d', dim=1)
 
+        self.x = self.y = 16
         if self.hparams.stacked == 0:
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.projection == "both":
@@ -81,7 +82,10 @@ class VICReg(pl.LightningModule):
         elif self.hparams.projection == "simple":
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.projection == "stacked":
+            self.y = 32
             self.encoder_stacked.fc = torch.nn.Sequential(fc)
+        else:
+            self.y = 32
 
         self.num_batches = num_batches
         self.effective_bsz = effective_bsz
