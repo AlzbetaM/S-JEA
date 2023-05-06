@@ -77,7 +77,7 @@ class VICReg(pl.LightningModule):
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.projection == "both":
             self.encoder_online.fc = torch.nn.Sequential(fc)
-            self.encoder_stacked.fc = torch.nn.Sequential(fc)
+            self.encoder_stacked.fc = copy.deepcopy(torch.nn.Sequential(fc))
         elif self.hparams.projection == "simple":
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.projection == "stacked":
@@ -498,7 +498,7 @@ class VICReg(pl.LightningModule):
 
         # newly added to help switching between code versions
         parser.add_argument('--stacked', type=int, default=0)
-        parser.add_argument('--projection', type=str, default='both')
+        parser.add_argument('--projection', type=str, default='none')
 
         return parser
 
