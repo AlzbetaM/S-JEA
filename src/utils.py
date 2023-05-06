@@ -7,6 +7,7 @@ import warnings
 from typing import List
 
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
@@ -18,8 +19,10 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 import neptune
 
+
 class PTPrintingCallback(pl.Callback):
     ''' Callback to handle all metric printing and visualisations during self-supervised pretraining '''
+
     def __init__(self, path, args):
         self.args = args
 
@@ -36,7 +39,7 @@ class PTPrintingCallback(pl.Callback):
         # loss = np.mean(pl_module.train_loss) # /self.num_devices
         epoch = trainer.current_epoch
         loss = trainer.callback_metrics['loss_epoch']
-        
+
         if self.cur_loss > loss:
             self.cur_loss = loss
 
@@ -51,10 +54,9 @@ class PTPrintingCallback(pl.Callback):
 
         for param_group in trainer.optimizers[0].param_groups:
             lr = param_group['lr']
-    
+
         pl_module.logger.experiment['train/lr_epoch'].log(lr)
         pl_module.logger.experiment['train/loss_epoch'].log(loss)
-                 
 
     @rank_zero_only
     def on_validation_epoch_end(self, trainer, pl_module):
@@ -62,23 +64,25 @@ class PTPrintingCallback(pl.Callback):
         epoch = trainer.current_epoch
 
         loss = trainer.callback_metrics['valid_loss/dataloader_idx_0']
-        
+
         pl_module.valid_loss = []
 
         print("\n Epoch: {}".format(epoch))
         print("\n [Valid] Avg Loss: {:.4f}, Avg KNN Acc: {:.4f}".format(loss, pl_module.val_knn))
-        
+
         pl_module.logger.experiment['valid/loss_epoch'].log(loss)
         pl_module.logger.experiment['valid/knn_acc'].log(pl_module.val_knn)
+        pl_module.logger.experiment['valid/knn_acc1'].log(pl_module.val_knn1)
+        pl_module.logger.experiment['valid/knn_acc2'].log(pl_module.val_knn2)
+        pl_module.logger.experiment['valid/knn_acc3'].log(pl_module.val_knn3)
+        pl_module.logger.experiment['valid/knn_acc4'].log(pl_module.val_knn4)
+        if pl_module.hparams.stacked == 1:
+            pl_module.logger.experiment['valid/knn_acc_s'].log(pl_module.val_knn_stacked)
+            pl_module.logger.experiment['valid/knn_acc_s1'].log(pl_module.val_knn_stacked1)
+            pl_module.logger.experiment['valid/knn_acc_s2'].log(pl_module.val_knn_stacked2)
+            pl_module.logger.experiment['valid/knn_acc_s3'].log(pl_module.val_knn_stacked3)
+            pl_module.logger.experiment['valid/knn_acc_s4'].log(pl_module.val_knn_stacked4)
 
-        # Validaiton visualisation plotting goes here:
-
-        pl_module.plot_test_label_bank.clear()
-        pl_module.plot_train_label_bank.clear()
-        pl_module.plot_test_feature_bank.clear()
-        pl_module.plot_train_feature_bank.clear()
-        pl_module.plot_test_path_bank.clear()
-        
 
 class FTPrintingCallback(pl.Callback):
     ''' Callback to handle all metric printing and visualisations during self-supervised linear evaluation '''
@@ -95,26 +99,26 @@ class FTPrintingCallback(pl.Callback):
 
     @rank_zero_only
     def on_train_epoch_end(self, trainer, pl_module):
-        loss = np.mean(pl_module.train_loss)#/self.num_devices
-        acc = np.mean(pl_module.train_acc)#/self.num_devices
-        t5 = np.mean(pl_module.train_t5)#/self.num_devices
-        
+        loss = np.mean(pl_module.train_loss)  # /self.num_devices
+        acc = np.mean(pl_module.train_acc)  # /self.num_devices
+        t5 = np.mean(pl_module.train_t5)  # /self.num_devices
+
         pl_module.train_loss = []
         pl_module.train_acc = []
         pl_module.train_t5 = []
 
         print("\n [Train] Avg Loss: {:.4f}, Avg Acc: {:.4f}, Avg top5: {:.4f}".format(
             loss, acc, t5))
-        
+
         pl_module.logger.experiment['ft_train/t5_epoch'].log(t5)
         pl_module.logger.experiment['ft_train/loss_epoch'].log(loss)
         pl_module.logger.experiment['ft_train/acc_epoch'].log(acc)
 
     @rank_zero_only
     def on_validation_epoch_end(self, trainer, pl_module):
-        loss = np.mean(pl_module.valid_loss)#/self.num_devices
-        acc = np.mean(pl_module.valid_acc)#/self.num_devices
-        t5 = np.mean(pl_module.valid_t5)#/self.num_devices
+        loss = np.mean(pl_module.valid_loss)  # /self.num_devices
+        acc = np.mean(pl_module.valid_acc)  # /self.num_devices
+        t5 = np.mean(pl_module.valid_t5)  # /self.num_devices
 
         epoch = trainer.current_epoch
 
@@ -125,7 +129,7 @@ class FTPrintingCallback(pl.Callback):
                 save_path = os.path.join(self.path, ('best_epoch.ckpt'))
 
                 print("!! Saving to !! :{} ".format(save_path))
-            
+
                 trainer.save_checkpoint(save_path)
 
         pl_module.valid_loss = []
@@ -135,21 +139,22 @@ class FTPrintingCallback(pl.Callback):
         print("\n Epoch: {}".format(epoch))
         print("\n [Valid] Avg Loss: {:.4f}, Avg Acc: {:.4f}, Avg tckptop5: {:.4f}".format(
             loss, acc, t5))
-        
+
         pl_module.logger.experiment['ft_valid/t5_epoch'].log(t5)
         pl_module.logger.experiment['ft_valid/loss_epoch'].log(loss)
         pl_module.logger.experiment['ft_valid/acc_epoch'].log(acc)
 
     @rank_zero_only
     def on_test_epoch_end(self, trainer, pl_module):
-        loss = np.mean(pl_module.test_loss)#/self.num_devices
-        acc = np.mean(pl_module.test_acc)#/self.num_devices
-        t5 = np.mean(pl_module.test_t5)#/self.num_devices
+        loss = np.mean(pl_module.test_loss)  # /self.num_devices
+        acc = np.mean(pl_module.test_acc)  # /self.num_devices
+        t5 = np.mean(pl_module.test_t5)  # /self.num_devices
 
         epoch = trainer.current_epoch
 
-        print("\n [Test] Avg Loss: {:.4f}, Avg Acc: {:.4f}, Avg top5: {:.4f}, Avg KNN Acc: {:.4f}".format(loss, acc, t5, pl_module.test_knn))
-        
+        print("\n [Test] Avg Loss: {:.4f}, Avg Acc: {:.4f}, Avg top5: {:.4f}, Avg KNN Acc: {:.4f}"
+              .format(loss, acc, t5, pl_module.test_knn))
+
         pl_module.logger.experiment['ft_test/t5_epoch'].log(t5)
         pl_module.logger.experiment['ft_test/loss_epoch'].log(loss)
         pl_module.logger.experiment['ft_test/acc_epoch'].log(acc)
@@ -159,7 +164,7 @@ class FTPrintingCallback(pl.Callback):
 class TestNeptuneCallback(pl.Callback):
     def __init__(self, experiment):
         self.experiment = experiment
-        
+
     @rank_zero_only
     def on_test_epoch_end(self, trainer, pl_module):
         loss = np.array(pl_module.test_loss).mean()
@@ -167,11 +172,11 @@ class TestNeptuneCallback(pl.Callback):
         t5 = np.array(pl_module.test_t5).mean()
 
         epoch = trainer.current_epoch
-            
+
         pl_module.logger.experiment['ft_test/test_top5'].log(t5)
         pl_module.logger.experiment['ft_test/test_loss'].log(loss)
         pl_module.logger.experiment['ft_test/test_acc'].log(acc)
-        
+
         print("\n [Test] Avg Loss: {:.4f}, Avg Acc: {:.4f}, Avg top5: {:.4f}".format(loss, acc, t5))
 
 
@@ -188,6 +193,7 @@ class CheckpointSave(pl.Callback):
 
         trainer.save_checkpoint(self.path)
 
+
 # Helper Functions
 
 def sample_weights(labels):
@@ -196,23 +202,25 @@ def sample_weights(labels):
     class_weights = 1. / torch.Tensor(class_sample_count)
     return class_weights[list(map(int, labels))]
 
+
 def rank_zero_check():
     if not int(os.environ.get('SLURM_PROCID', 0)) > 0 and not int(os.environ.get('LOCAL_RANK', 0)) > 0:
         return True
     else:
         return False
-    
+
+
 class CosineWD_LR_Schedule(torch.optim.lr_scheduler._LRScheduler):
     def __init__(self,
-        optimizer,
-        warmup_steps,
-        start_lr,
-        ref_lr,
-        ref_wd,
-        T_max,
-        last_epoch=-1,
-        final_lr=0.,
-        final_wd=0.):
+                 optimizer,
+                 warmup_steps,
+                 start_lr,
+                 ref_lr,
+                 ref_wd,
+                 T_max,
+                 last_epoch=-1,
+                 final_lr=0.,
+                 final_wd=0.):
 
         self.optimizer = optimizer
         self.ref_wd = ref_wd
@@ -253,20 +261,21 @@ class CosineWD_LR_Schedule(torch.optim.lr_scheduler._LRScheduler):
             if ('WD_exclude' not in group) or not group['WD_exclude']:
                 group['weight_decay'] = new_wd
 
+
 class LinearWarmupCosineAnnealingLR_FixLR(_LRScheduler):
     """Sets the learning rate of each parameter group to follow a linear warmup schedule between warmup_start_lr
     and base_lr followed by a cosine annealing schedule between base_lr and eta_min.
     """
 
     def __init__(
-        self,
-        optimizer: Optimizer,
-        warmup_epochs: int,
-        max_epochs: int,
-        warmup_start_lr: float = 0.0,
-        eta_min: float = 0.0,
-        last_epoch: int = -1,
-        start_lr: float = 0.001,
+            self,
+            optimizer: Optimizer,
+            warmup_epochs: int,
+            max_epochs: int,
+            warmup_start_lr: float = 0.0,
+            eta_min: float = 0.0,
+            last_epoch: int = -1,
+            start_lr: float = 0.001,
     ) -> None:
         """
         Args:
@@ -282,7 +291,6 @@ class LinearWarmupCosineAnnealingLR_FixLR(_LRScheduler):
         self.warmup_start_lr = warmup_start_lr
         self.eta_min = eta_min
         self.start_lr = start_lr
-        
 
         super().__init__(optimizer, last_epoch)
 
@@ -309,7 +317,8 @@ class LinearWarmupCosineAnnealingLR_FixLR(_LRScheduler):
             return [
                 self.start_lr
                 if 'fix_lr' in group and group['fix_lr'] else group["lr"]
-                + (base_lr - self.eta_min) * (1 - math.cos(math.pi / (self.max_epochs - self.warmup_epochs))) / 2
+                                                              + (base_lr - self.eta_min) * (1 - math.cos(
+                    math.pi / (self.max_epochs - self.warmup_epochs))) / 2
                 for base_lr, group in zip(self.base_lrs, self.optimizer.param_groups)
             ]
 
@@ -318,10 +327,10 @@ class LinearWarmupCosineAnnealingLR_FixLR(_LRScheduler):
             if 'fix_lr' in group and group['fix_lr'] else
             (1 + math.cos(math.pi * (self.last_epoch - self.warmup_epochs) / (self.max_epochs - self.warmup_epochs)))
             / (
-                1
-                + math.cos(
-                    math.pi * (self.last_epoch - self.warmup_epochs - 1) / (self.max_epochs - self.warmup_epochs)
-                )
+                    1
+                    + math.cos(
+                math.pi * (self.last_epoch - self.warmup_epochs - 1) / (self.max_epochs - self.warmup_epochs)
+            )
             )
             * (group["lr"] - self.eta_min)
             + self.eta_min
@@ -368,13 +377,14 @@ def linear_warmup_decay(warmup_steps, total_steps, cosine=True, linear=False):
 
     return fn
 
+
 class SteppedLRScheduler(torch.optim.lr_scheduler._LRScheduler):
     def __init__(
-                self,
-                optimizer,
-                milestones,
-                lrs
-        ) -> None:
+            self,
+            optimizer,
+            milestones,
+            lrs
+    ) -> None:
 
         self.milestones = milestones
         self.lrs = lrs
@@ -392,49 +402,50 @@ class SteppedLRScheduler(torch.optim.lr_scheduler._LRScheduler):
     def get_lr(self, optimizer):
         for pg in optimizer.param_groups:
             lr = pg["lr"]
-        
+
         return lr
 
-    def step(self, val_loss = None):
-        
+    def step(self, val_loss=None):
+
         if self.update_steps in self.milestones:
             lr_ind = self.milestones.index(self.update_steps)
             lr = self.lrs[lr_ind]
 
             self.set_lr(self.optimizer, lr)
-            
+
         self.update_steps += 1
 
 
 def _no_grad_trunc_normal_(tensor, mean, std, a, b):
     # Cut & paste from PyTorch official master until it's in a few official releases - RW
     # Method based on https://people.sc.fsu.edu/~jburkardt/presentations/truncated_normal.pdf
-        def norm_cdf(x):
-            # Computes standard normal cumulative distribution function
-            return (1. + math.erf(x / math.sqrt(2.))) / 2.
+    def norm_cdf(x):
+        # Computes standard normal cumulative distribution function
+        return (1. + math.erf(x / math.sqrt(2.))) / 2.
 
-        with torch.no_grad():
-            # Values are generated by using a truncated uniform distribution and
-            # then using the inverse CDF for the normal distribution.
-            # Get upper and lower cdf values
-            l = norm_cdf((a - mean) / std)
-            u = norm_cdf((b - mean) / std)
+    with torch.no_grad():
+        # Values are generated by using a truncated uniform distribution and
+        # then using the inverse CDF for the normal distribution.
+        # Get upper and lower cdf values
+        l = norm_cdf((a - mean) / std)
+        u = norm_cdf((b - mean) / std)
 
-            # Uniformly fill tensor with values from [l, u], then translate to
-            # [2l-1, 2u-1].
-            tensor.uniform_(2 * l - 1, 2 * u - 1)
+        # Uniformly fill tensor with values from [l, u], then translate to
+        # [2l-1, 2u-1].
+        tensor.uniform_(2 * l - 1, 2 * u - 1)
 
-            # Use inverse cdf transform for normal distribution to get truncated
-            # standard normal
-            tensor.erfinv_()
+        # Use inverse cdf transform for normal distribution to get truncated
+        # standard normal
+        tensor.erfinv_()
 
-            # Transform to proper mean, std
-            tensor.mul_(std * math.sqrt(2.))
-            tensor.add_(mean)
+        # Transform to proper mean, std
+        tensor.mul_(std * math.sqrt(2.))
+        tensor.add_(mean)
 
-            # Clamp to ensure it's in the proper range
-            tensor.clamp_(min=a, max=b)
-            return tensor
+        # Clamp to ensure it's in the proper range
+        tensor.clamp_(min=a, max=b)
+        return tensor
+
 
 def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)

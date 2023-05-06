@@ -34,6 +34,7 @@ class STL_DataModule(LightningDataModule):
         super().__init__(*args, **kwargs)
 
         self.size = (3, 96, 96)
+        self.DATASET = STL10
         self.val_split = val_split
         self.num_workers = num_workers
         self.batch_size = batch_size
@@ -46,14 +47,19 @@ class STL_DataModule(LightningDataModule):
     def num_classes(self):
         return 10
 
+    def prepare_data(self):
+        self.DATASET(self.data_dir, download=True,
+                     transform=transforms.ToTensor(), **self.extra_args)
+
     def train_dataloader(self):
         
         # Get transformations
         transf = self.default_transforms() if self.train_transforms is None else self.train_transforms
 
         # Dataset loader
-        dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'unlabelled'), transform=transf)
-
+        #dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'unlabelled'), transform=transf)
+        dataset_train = self.DATASET(self.data_dir, split="unlabeled", download=True,
+                               transform=transf, **self.extra_args)
         # Train / Val split  
         # self.data, self.labels = utils.random_split_image_folder(data=self.train_dataset.samples,
         #                                                          labels=self.train_dataset.targets,
@@ -82,8 +88,13 @@ class STL_DataModule(LightningDataModule):
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
         dataset_valid = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf)
         dataset_ssl = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf_ssl)
-
-        # Train / Val split  
+        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
+                               transform=transf, **self.extra_args)
+        dataset_valid = self.DATASET(self.data_dir, split="test", download=True,
+                               transform=transf, **self.extra_args)
+        dataset_ssl = self.DATASET(self.data_dir, split="test", download=True,
+                               transform=transf_ssl, **self.extra_args)'''
+        # Train / Val split
         # self.data, self.labels = utils.random_split_image_folder(data=self.train_imagenet.samples,
         #                                                          labels=self.train_imagenet.targets,
         #                                                          n_classes=1000,
@@ -130,6 +141,12 @@ class STL_DataModule(LightningDataModule):
         # Dataset loader
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
         dataset_test = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf)
+
+        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
+                              transform=transf, **self.extra_args)
+
+        dataset_test = self.DATASET(self.data_dir, split="test", download=True,
+                                     transform=transf, **self.extra_args)'''
 
         # Loader
         loader = DataLoader(
@@ -223,6 +240,7 @@ class STL_ft_DataModule(LightningDataModule):
         super().__init__(*args, **kwargs)
 
         self.size = (3, 96, 96)
+        #self.DATASET = STL10
         self.val_split = val_split
         self.num_workers = num_workers
         self.batch_size = batch_size
@@ -242,6 +260,8 @@ class STL_ft_DataModule(LightningDataModule):
 
         # Dataset loader
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
+        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
+                                     transform=transf, **self.extra_args)'''
 
         # Train / Val split  
         # self.data, self.labels = utils.random_split_image_folder(data=self.train_dataset.samples,
@@ -271,6 +291,13 @@ class STL_ft_DataModule(LightningDataModule):
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
         dataset_valid = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf)
         dataset_ssl = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf_ssl)
+
+        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
+                     transform=transf, **self.extra_args)
+        dataset_valid = self.DATASET(self.data_dir, split="test", download=True,
+                                     transform=transf, **self.extra_args)
+        dataset_ssl= self.DATASET(self.data_dir, split="test", download=True,
+                                     transform=transf_ssl, **self.extra_args)'''
 
         # Train / Val split  
         # self.data, self.labels = utils.random_split_image_folder(data=self.train_imagenet.samples,
@@ -320,6 +347,10 @@ class STL_ft_DataModule(LightningDataModule):
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
         dataset_test = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf)
 
+        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
+                                     transform=transf, **self.extra_args)
+        dataset_test = self.DATASET(self.data_dir, split="test", download=True,
+                                     transform=transf, **self.extra_args)'''
         # Loader
         loader = DataLoader(
             dataset_test,

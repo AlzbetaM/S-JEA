@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import numpy as np
+from lightning_utilities.core.rank_zero import rank_zero_only
 from sklearn.manifold import TSNE
 from matplotlib import pyplot as plt
 from configargparse import ArgumentParser
@@ -17,6 +18,7 @@ import network as models
 from optimiser import LARSSGD
 import neptune
 from utils import rank_zero_check
+import os
 
 
 class SSLLinearEval(pl.LightningModule):
@@ -40,6 +42,7 @@ class SSLLinearEval(pl.LightningModule):
         self.stacked = stack
 
         # Define the model and remove the projection head
+
         # Freeze encoder
         if self.stacked:
             self.enc1 = encoder[0]
@@ -55,7 +58,9 @@ class SSLLinearEval(pl.LightningModule):
             for param in self.enc.parameters():
                 param.requires_grad = False
 
-        emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model else 2048 if '101' in self.hparams.model else 96
+        emb_dim = 512 if '18' in self.hparams.model else 512 if '34' in self.hparams.model \
+            else 2048 if '50' in self.hparams.model else 2048 if '50' in self.hparams.model \
+            else 2048 if '101' in self.hparams.model else 96
         print("\n Num Classes: {}".format(num_classes))
 
         # Define the linear evaluation head and train it
@@ -92,19 +97,17 @@ class SSLLinearEval(pl.LightningModule):
         self.train_label_bank = []
         self.test_feature_bank = []
         self.test_label_bank = []
+        self.test_path_bank = []
         self.test_knn = 0.0
 
     def encode(self, x):
         with torch.no_grad():
             if self.stacked:
-                s, _ = self.enc1(x)
-                if self.hparams.projection == "both" or self.hparams.projection == "simple":
-                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 16)
-                else:
-                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, 32)
-                return self.enc2(s)
+                _, _, s = self.enc1(x)
+                a, b, _ = self.enc2(s)
             else:
-                return self.enc(x)
+                a, b, _ = self.enc(x)
+            return a, b
 
     def training_step(self, batch, batch_idx):
         # This statement is for plotting visualisation purposes
@@ -217,6 +220,12 @@ class SSLLinearEval(pl.LightningModule):
         elif mode == 'test':
             self.test_feature_bank.append(F.normalize(feature, dim=1))
             self.test_label_bank.append(y)
+            if len(batch) > 2:
+                for i in range(len(img_path)):
+                    img_name = img_path[i].split('/')[-1][:-4]
+                    class_id = img_path[i].split('/')[-2]
+                    img_path[i] = [int(class_id), int(img_name)]
+                self.test_path_bank.append(torch.Tensor(img_path))
 
     def test_step(self, batch, batch_idx, dataloader_idx):
 
@@ -255,13 +264,19 @@ class SSLLinearEval(pl.LightningModule):
             self.test_acc.append(acc.item())
             self.test_t5.append(t5)
 
+    @rank_zero_only
     def test_epoch_end(self, output) -> None:
         # Compute final global metrics and plot visualisation of classification space
-
         self.train_feature_bank = torch.cat(self.train_feature_bank, dim=0).t().contiguous()
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
         self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
+
+        self.test_feature_bank = self.all_gather(self.test_feature_bank)
+        self.test_label_bank = self.all_gather(self.test_label_bank)
+
+        self.test_feature_bank = torch.flatten(self.test_feature_bank, end_dim=1)
+        self.test_label_bank = torch.flatten(self.test_label_bank, end_dim=1)
 
         total_top1, total_num = 0.0, 0
 
@@ -279,7 +294,7 @@ class SSLLinearEval(pl.LightningModule):
 
         self.log_dict({'test_knn': self.test_knn}, sync_dist=True)
 
-        if self.hparams.dataset == 'cifar10':
+        if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
             # TSNE
             tsne = TSNE(n_components=2, verbose=1, random_state=123)
             z = tsne.fit_transform(self.test_feature_bank.cpu().detach().numpy())
@@ -296,14 +311,29 @@ class SSLLinearEval(pl.LightningModule):
             ty_from_zero = ty - np.min(ty)
             ty = ty_from_zero / ty_range
 
-            classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+            if self.hparams.dataset == 'stl10':
+                classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+            else:
+                classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
             # Define the figure size
             fig = plt.figure(figsize=(15, 15))
-
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-            plt.savefig("plt.jpg")
+            if self.hparams.dataset == 'stl10':
+                self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
+                self.test_path_bank = self.all_gather(self.test_path_bank)
+                self.test_path_bank = torch.flatten(self.test_path_bank, end_dim=1)
+
+                dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
+                if self.stacked:
+                    nm = dest + 's_plot_data.npz'
+                else:
+                    nm = dest + 'plot_data.npz'
+                np.savez(nm, path_bank=self.test_path_bank.cpu().detach().numpy(),
+                         label_bank=self.test_label_bank.cpu().detach().numpy(),
+                         ty=ty, tx=tx)
+
             if rank_zero_check():
                 self.logger.experiment['tsne/test_tsne'].upload(neptune.types.File.as_image(fig))
             plt.clf()
@@ -311,10 +341,10 @@ class SSLLinearEval(pl.LightningModule):
 
         self.train_feature_bank = []
         self.train_label_bank = []
-        self.train_label_bank = []
 
         self.test_feature_bank = []
         self.test_label_bank = []
+        self.test_path_bank = []
 
     def configure_optimizers(self):
 

@@ -19,7 +19,6 @@ from dataloaders.stl import *
 
 
 def get_dm(args):
-
     # init default datamodule
     if args.dataset == 'cifar10':
         args.img_dim = 32
