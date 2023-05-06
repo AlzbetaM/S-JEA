@@ -18,9 +18,17 @@ source activate pt
 nvidia-smi
 
 rm logfiles.txt
+srun python src/pretrain.py -c=config_maxwell.conf --projection=both
+srun python src/finetune.py -c=config_maxwell.conf --projection=both
+
+rm logfiles.txt
 srun python src/pretrain.py -c=config_maxwell.conf --projection=none
 srun python src/finetune.py -c=config_maxwell.conf --projection=none
 
 rm logfiles.txt
-srun python src/pretrain.py -c=config_maxwell.conf --projection=both
-srun python src/finetune.py -c=config_maxwell.conf --projection=both
+srun python src/pretrain.py -c=config_maxwell.conf --projection=stacked
+srun python src/finetune.py -c=config_maxwell.conf --projection=stacked
+
+rm logfiles.txt
+srun python src/pretrain.py -c=config_maxwell.conf --projection=simple
+srun python src/finetune.py -c=config_maxwell.conf --projection=simple
