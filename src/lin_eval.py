@@ -48,7 +48,7 @@ class SSLLinearEval(pl.LightningModule):
             self.enc2 = encoder[1]
             if self.stacked == 2:
                 self.enc3 = encoder[2]
-                self.enc3.fc = Identity
+                self.enc3.fc = Identity()
                 for param in self.enc3.parameters():
                     param.requires_grad = False
             else:
@@ -105,15 +105,17 @@ class SSLLinearEval(pl.LightningModule):
 
     def encode(self, x):
         with torch.no_grad():
-            j = 16
-            if self.hparams.projection == "stacked" or self.hparams.projection == "none":
-                j = 32
+            i1, j1, i2, j2 = 16
+            if self.hparams.projection == "none" or self.hparams.projection == "stacked":
+                j1, j2 = 32
             if self.stacked >= 1:
                 s, _ = self.enc1(x)
-                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, j)
+                s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, i1, j1)
                 if self.stacked == 2:
+                    if self.hparams.projection == "simple":
+                        j2 = 32
                     s, _ = self.enc2(s)
-                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, 16, j)
+                    s = s.repeat(1, 3).reshape(self.hparams.ft_batch_size, 3, i2, j2)
                     return self.enc3(s)
                 return self.enc2(s)
             else:
@@ -282,8 +284,9 @@ class SSLLinearEval(pl.LightningModule):
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
 
         self.test_feature_bank = self.all_gather(self.test_feature_bank)
-
+        self.test_label_bank = self.all_gather(self.test_label_bank)
         self.test_feature_bank = torch.flatten(self.test_feature_bank, end_dim=1)
+        self.test_label_bank = torch.flatten(self.test_label_bank, end_dim=1)
 
         total_top1, total_num = 0.0, 0
 
@@ -318,20 +321,19 @@ class SSLLinearEval(pl.LightningModule):
             ty_from_zero = ty - np.min(ty)
             ty = ty_from_zero / ty_range
 
-            if self.hparams.dataset == 'stl10':
-                classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
-            else:
-                classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
-
-            # Define the figure size
+            # Define the plot
             fig = plt.figure(figsize=(15, 15))
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
-            plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+            if self.hparams.dataset == 'stl10':
+                classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+                plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+            elif self.hparams.dataset == 'cifar10':
+                classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+                plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+
             if self.hparams.dataset == 'stl10':
                 self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
-                self.test_label_bank = self.all_gather(self.test_label_bank)
                 self.test_path_bank = self.all_gather(self.test_path_bank)
-                self.test_label_bank = torch.flatten(self.test_label_bank, end_dim=1)
                 self.test_path_bank = torch.flatten(self.test_path_bank, end_dim=1)
 
                 if self.stacked == 1:

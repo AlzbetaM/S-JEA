@@ -68,8 +68,7 @@ class VICReg(pl.LightningModule):
         fc['relu2'] = torch.nn.ReLU()
         fc['fc3'] = torch.nn.Linear(self.hparams.h_units, self.hparams.o_units)
 
-        self.x = 16
-        self.y = 16
+        self.x = self.y = 16
         if self.hparams.stacked == 0:
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.stacked == 2:
@@ -87,15 +86,22 @@ class VICReg(pl.LightningModule):
                 self.encoder_stacked = copy.deepcopy(self.encoder_online)
                 self.y = 32
         elif self.hparams.stacked == 3:
+            self.y2 = 16
             if self.hparams.projection == "none":
                 self.encoder_stacked = copy.deepcopy(self.encoder_online)
                 self.encoder_stacked2 = copy.deepcopy(self.encoder_online)
-                self.y = 32
+                self.y = self.y2 = 32
             elif self.hparams.projection == "simple":
+                self.encoder_stacked2 = copy.deepcopy(self.encoder_online)
+                self.encoder_stacked = copy.deepcopy(self.encoder_online)
+                self.encoder_online.fc = torch.nn.Sequential(fc)
+                self.y2 = 32
+            elif self.hparams.projection == "stacked":
                 self.encoder_stacked2 = copy.deepcopy(self.encoder_online)
                 self.encoder_online.fc = torch.nn.Sequential(fc)
                 self.encoder_stacked = copy.deepcopy(self.encoder_online)
-            else:
+                self.y = self.y2 = 32
+            elif self.hparams.projection == "both":
                 self.encoder_online.fc = torch.nn.Sequential(fc)
                 self.encoder_stacked = copy.deepcopy(self.encoder_online)
                 self.encoder_stacked2 = copy.deepcopy(self.encoder_online)
@@ -246,7 +252,7 @@ class VICReg(pl.LightningModule):
                 s_projection, s_embedding = self.encoder_stacked(s)
                 if self.hparams.stacked == 3:
                     s2 = s_projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
-                    s2_projection, s2_embedding = self.encoder_stacked2(s2)
+                    _, s2_embedding = self.encoder_stacked2(s2)
 
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
@@ -317,10 +323,9 @@ class VICReg(pl.LightningModule):
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
         self.val_knn = total_top1 / total_num * 100
-        if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
-            if self.plot_test_path_bank:
-                self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
-            self.tsne_plot("pretrain", self.test_feature_bank)
+        if self.plot_test_path_bank:
+            self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
+        self.tsne_plot("pretrain", self.test_feature_bank)
 
         if self.hparams.stacked >= 2:
             self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
@@ -336,11 +341,10 @@ class VICReg(pl.LightningModule):
                 total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
             self.val_knn_stacked = total_top1 / total_num * 100
-            if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
-                self.tsne_plot("pretrain_s", self.test_feature_bank_stacked)
-
+            self.tsne_plot("pretrain_s", self.test_feature_bank_stacked)
             self.train_feature_bank_stacked = []
             self.test_feature_bank_stacked = []
+
             if self.hparams.stacked == 3:
                 self.train_feature_bank_stacked2 = torch.cat(self.train_feature_bank_stacked2, dim=0).t().contiguous()
                 self.test_feature_bank_stacked2 = torch.cat(self.test_feature_bank_stacked2, dim=0).contiguous()
@@ -356,8 +360,7 @@ class VICReg(pl.LightningModule):
                     total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
                 self.val_knn_stacked2 = total_top1 / total_num * 100
-                if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
-                    self.tsne_plot("pretrain_s2", self.test_feature_bank_stacked2)
+                self.tsne_plot("pretrain_s2", self.test_feature_bank_stacked2)
                 self.train_feature_bank_stacked2 = []
                 self.test_feature_bank_stacked2 = []
 
@@ -384,18 +387,20 @@ class VICReg(pl.LightningModule):
         ty_from_zero = ty - np.min(ty)
         ty = ty_from_zero / ty_range
 
+        # Define the plot
+        fig = plt.figure(figsize=(15, 15))
+        scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
         if self.hparams.dataset == 'stl10':
             classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+            plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+        elif self.hparams.dataset == 'cifar10':
+            classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+            plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+
+        if self.plot_test_path_bank:
             np.savez(dest + name, path_bank=self.plot_test_path_bank.cpu().detach().numpy(),
                      label_bank=self.test_label_bank.cpu().detach().numpy(),
                      ty=ty, tx=tx)
-        else:
-            classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
-
-        # Define the figure size
-        fig = plt.figure(figsize=(15, 15))
-        scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
-        plt.legend(handles=scatter.legend_elements()[0], labels=classes)
 
         if rank_zero_check():
             self.logger.experiment['tsne/' + name].upload(neptune.types.File.as_image(fig))
