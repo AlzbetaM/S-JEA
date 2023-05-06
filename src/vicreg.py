@@ -72,39 +72,34 @@ class VICReg(pl.LightningModule):
         if self.hparams.stacked == 0:
             self.encoder_online.fc = torch.nn.Sequential(fc)
         elif self.hparams.stacked == 2:
+            self.encoder_stacked = models.__dict__[self.hparams.model]\
+                (dataset=self.hparams.dataset, norm_layer='bn2d', dim=1)
             if self.hparams.projection == "both":
                 self.encoder_online.fc = torch.nn.Sequential(fc)
-                self.encoder_stacked = copy.deepcopy(self.encoder_online)
+                self.encoder_stacked.fc = copy.deepcopy(torch.nn.Sequential(fc))
             elif self.hparams.projection == "simple":
-                self.encoder_stacked = copy.deepcopy(self.encoder_online)
                 self.encoder_online.fc = torch.nn.Sequential(fc)
             elif self.hparams.projection == "stacked":
-                self.encoder_stacked = copy.deepcopy(self.encoder_online)
                 self.encoder_stacked.fc = torch.nn.Sequential(fc)
                 self.y = 32
             else:
-                self.encoder_stacked = copy.deepcopy(self.encoder_online)
                 self.y = 32
         elif self.hparams.stacked == 3:
             self.y2 = 16
-            if self.hparams.projection == "none":
-                self.encoder_stacked = copy.deepcopy(self.encoder_online)
-                self.encoder_stacked2 = copy.deepcopy(self.encoder_online)
-                self.y = self.y2 = 32
-            elif self.hparams.projection == "simple":
-                self.encoder_stacked2 = copy.deepcopy(self.encoder_online)
-                self.encoder_stacked = copy.deepcopy(self.encoder_online)
+            self.encoder_stacked2 = models.__dict__[self.hparams.model]\
+                (dataset=self.hparams.dataset, norm_layer='bn2d', dim=1)
+            if self.hparams.projection == "simple":
                 self.encoder_online.fc = torch.nn.Sequential(fc)
                 self.y2 = 32
             elif self.hparams.projection == "stacked":
-                self.encoder_stacked2 = copy.deepcopy(self.encoder_online)
-                self.encoder_online.fc = torch.nn.Sequential(fc)
-                self.encoder_stacked = copy.deepcopy(self.encoder_online)
+                self.encoder_stacked2.fc = copy.deepcopy(torch.nn.Sequential(fc))
                 self.y = self.y2 = 32
             elif self.hparams.projection == "both":
                 self.encoder_online.fc = torch.nn.Sequential(fc)
-                self.encoder_stacked = copy.deepcopy(self.encoder_online)
-                self.encoder_stacked2 = copy.deepcopy(self.encoder_online)
+                self.encoder_stacked.fc = copy.deepcopy(torch.nn.Sequential(fc))
+                self.encoder_stacked2.fc = copy.deepcopy(torch.nn.Sequential(fc))
+            else:
+                self.y = self.y2 = 32
         # Assign the projection head to the encoder
 
         self.num_batches = num_batches
@@ -165,8 +160,8 @@ class VICReg(pl.LightningModule):
         all_loss = loss
 
         if self.hparams.stacked >= 1:
-            y_i = y_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
-            y_j = y_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
+            y_i = y_i.reshape(self.hparams.batch_size, 1, self.x, self.y)
+            y_j = y_j.reshape(self.hparams.batch_size, 1, self.x, self.y)
 
             # stacked encoder
             if self.hparams.stacked >= 2:
@@ -182,8 +177,8 @@ class VICReg(pl.LightningModule):
             s_loss_cov = self.covariance_loss(stack_i, stack_j)
 
             if self.hparams.stacked == 3:
-                x_i = stack_i.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
-                x_j = stack_j.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
+                x_i = stack_i.reshape(self.hparams.batch_size, 1, self.x, self.y2)
+                x_j = stack_j.reshape(self.hparams.batch_size, 1, self.x, self.y2)
 
                 stack2_i, _ = self.encoder_stacked2(x_i)
                 stack2_j, _ = self.encoder_stacked2(x_j)
@@ -248,10 +243,10 @@ class VICReg(pl.LightningModule):
         with torch.no_grad():
             projection, embedding = self.encoder_online(img)
             if self.hparams.stacked >= 2:
-                s = projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
+                s = projection.reshape(self.hparams.batch_size, 1, self.x, self.y)
                 s_projection, s_embedding = self.encoder_stacked(s)
                 if self.hparams.stacked == 3:
-                    s2 = s_projection.repeat(1, 3).reshape(self.hparams.batch_size, 3, self.x, self.y)
+                    s2 = s_projection.reshape(self.hparams.batch_size, 1, self.x, self.y2)
                     _, s2_embedding = self.encoder_stacked2(s2)
 
         if idx == 1:
