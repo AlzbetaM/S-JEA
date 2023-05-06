@@ -303,13 +303,13 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        y = x
+
         x = self.avgpool(x)
 
         x = torch.flatten(x, 1)
 
         out = self.fc(x)
-        return out, x, y
+        return out, x
 
 
 class SmallAlexNet(nn.Module):

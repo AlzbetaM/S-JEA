@@ -103,11 +103,10 @@ class SSLLinearEval(pl.LightningModule):
     def encode(self, x):
         with torch.no_grad():
             if self.stacked:
-                _, _, s = self.enc1(x)
-                a, b, _ = self.enc2(s)
+                s, _ = self.enc1(x)
+                return self.enc2(s)
             else:
-                a, b, _ = self.enc(x)
-            return a, b
+                return self.enc(x)
 
     def training_step(self, batch, batch_idx):
         # This statement is for plotting visualisation purposes
@@ -311,20 +310,20 @@ class SSLLinearEval(pl.LightningModule):
             ty_from_zero = ty - np.min(ty)
             ty = ty_from_zero / ty_range
 
-            if self.hparams.dataset == 'stl10':
-                classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
-            else:
-                classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
-
-            # Define the figure size
+            # Define the plot
             fig = plt.figure(figsize=(15, 15))
             scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
-            plt.legend(handles=scatter.legend_elements()[0], labels=classes)
             if self.hparams.dataset == 'stl10':
+                classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+                plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+            elif self.hparams.dataset == 'cifar10':
+                classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+                plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+
+            if self.plot_test_path_bank:
                 self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
                 self.test_path_bank = self.all_gather(self.test_path_bank)
                 self.test_path_bank = torch.flatten(self.test_path_bank, end_dim=1)
-
                 dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
                 if self.stacked:
                     nm = dest + 's_plot_data.npz'

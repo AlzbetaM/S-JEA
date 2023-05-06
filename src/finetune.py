@@ -18,7 +18,6 @@ from lin_eval import SSLLinearEval
 
 
 def cli_main(stacked=False):
-
     # Arguments
     default_config = os.path.join(os.path.split(os.getcwd())[0], 'config.conf')
     parser = ArgumentParser(

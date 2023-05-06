@@ -20,7 +20,6 @@ from lin_eval import SSLLinearEval
 
 
 def cli_main():
-
     # Arguments
     default_config = os.path.join(os.getcwd(), 'config.conf')
     parser = ArgumentParser(
@@ -83,9 +82,8 @@ def cli_main():
                     "joiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJhYmNlN2NlYS05Y2"
                     "E1LTQyZjktOWMzYS04MDIyNmYyNTIxMGQifQ==",
             project=args.project_name,
-            tags=[args.tag, args.projection, str(args.stacked), args.dataset],
-            source_files=['**/*.py']
-        )
+            tags=["Pretrain", args.tag, args.projection, str(args.stacked), args.dataset],
+            source_files=['**/*.py'])
 
     # Get DataModule / Dataloaders
     dm, ft_dm, args = get_dm(args)

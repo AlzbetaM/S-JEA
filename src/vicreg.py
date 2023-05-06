@@ -71,7 +71,7 @@ class VICReg(pl.LightningModule):
 
         if self.hparams.stacked == 1:
             self.encoder_stacked = models.__dict__[self.hparams.model]\
-                (dataset=self.hparams.dataset, norm_layer='bn2d', dim=512)
+                (dataset=self.hparams.dataset, norm_layer='bn2d', dim=1)
 
         if self.hparams.stacked == 0:
             self.encoder_online.fc = torch.nn.Sequential(fc)
@@ -124,33 +124,33 @@ class VICReg(pl.LightningModule):
         imgs = [u for u in img_batch]  # Multiple image views not implemented
 
         # Pass each view to the encoder
-        z_i, _, y_i = self.encoder_online(imgs[0])
-        z_j, _, y_j = self.encoder_online(imgs[1])
-
+        z_i, _ = self.encoder_online(imgs[0])
+        z_j, _ = self.encoder_online(imgs[1])
         # Ensure float32
         z_i, z_j = z_i.float(), z_j.float()
 
         # Compute loss
         loss_inv = self.invariance_loss(z_i, z_j)
-
         loss_var, _ = self.variance_loss(z_i, z_j)
         loss_cov = self.covariance_loss(z_i, z_j)
-
         loss = ((self.hparams.inv * loss_inv) + (self.hparams.var * loss_var) + (self.hparams.covar * loss_cov))
+
         all_loss = loss
 
         # for stacked VICReg
         if self.hparams.stacked == 1:
-            # torch.Size([128, 512, 4, 4]))
-            stack_i, _, _ = self.encoder_stacked(y_i)
-            stack_j, _, _ = self.encoder_stacked(y_j)
+            y_i = z_i.reshape(self.hparams.batch_size, 1, self.x, self.y)
+            y_j = z_j.reshape(self.hparams.batch_size, 1, self.x, self.y)
+
+            stack_i, _ = self.encoder_stacked(y_i)
+            stack_j, _ = self.encoder_stacked(y_j)
 
             stack_i, stack_j = stack_i.float(), stack_j.float()
+
             # Stacked loss
             s_loss_inv = self.invariance_loss(stack_i, stack_j)
             s_loss_var, _ = self.variance_loss(stack_i, stack_j)
             s_loss_cov = self.covariance_loss(stack_i, stack_j)
-
             s_loss = ((self.hparams.inv * s_loss_inv) + (self.hparams.var * s_loss_var) + (
                     self.hparams.covar * s_loss_cov))
             all_loss += s_loss
@@ -189,9 +189,10 @@ class VICReg(pl.LightningModule):
 
         # no_grad ensures we don't train
         with torch.no_grad():
-            _, embedding, s = self.encoder_online(img)
+            s, embedding = self.encoder_online(img)
             if self.hparams.stacked == 1:
-                _, s_embedding, _ = self.encoder_stacked(s)
+                s = s.reshape(self.hparams.batch_size, 1, self.x, self.y)
+                _, s_embedding = self.encoder_stacked(s)
 
         if idx == 1:
             self.train_feature_bank.append(F.normalize(embedding, dim=1))
@@ -337,19 +338,22 @@ class VICReg(pl.LightningModule):
         ty_from_zero = ty - np.min(ty)
         ty = ty_from_zero / ty_range
 
+        # Define the plot
+        fig = plt.figure(figsize=(15, 15))
+        scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
         if self.hparams.dataset == 'stl10':
             classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+            plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+        elif self.hparams.dataset == 'cifar10':
+            classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+            plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+
+        # if we have paths, save the arrays for future visualization
+        if self.plot_test_path_bank:
             np.savez(dest + name, path_bank=self.plot_test_path_bank.cpu().detach().numpy(),
                      label_bank=self.test_label_bank.cpu().detach().numpy(),
                      ty=ty, tx=tx)
-        else:
-            classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
-
-        # Define the figure size
-        fig = plt.figure(figsize=(15, 15))
-        scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
-        plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-
+        # log plots into neptune
         if rank_zero_check():
             self.logger.experiment['tsne/' + name].upload(neptune.types.File.as_image(fig))
         plt.clf()
@@ -496,7 +500,7 @@ class VICReg(pl.LightningModule):
         parser.set_defaults(save_checkpoint=False)
         parser.add_argument('--print_freq', type=int, default=1)
 
-        # newly added to help switching between code versions
+        # Added to help switching between model versions
         parser.add_argument('--stacked', type=int, default=0)
         parser.add_argument('--projection', type=str, default='none')
 
