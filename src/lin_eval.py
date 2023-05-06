@@ -103,7 +103,11 @@ class SSLLinearEval(pl.LightningModule):
     def encode(self, x):
         with torch.no_grad():
             if self.stacked:
+                i, j = 16
+                if self.hparams.projection == "none" or self.hparams.projection == "stacked":
+                    j = 32
                 s, _ = self.enc1(x)
+                s = s.reshape(self.hparams.batch_size, 1, i, j)
                 return self.enc2(s)
             else:
                 return self.enc(x)
