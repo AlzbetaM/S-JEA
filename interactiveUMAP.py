@@ -15,7 +15,7 @@ import numpy as np
 # For any other dataset, we need to change the class names and number of images in a class
 
 # load saved data
-data = np.load("Data/2_both.npz")
+data = np.load("Data/2_simple_s_pretrain.npz")
 
 # load each array ( making sure they are of correct type
 tx = data['tx']
@@ -51,7 +51,7 @@ fig.update_traces(
     hoverinfo="none",
     hovertemplate=None,
     showlegend=True,
-    marker=dict(size=5))
+    marker=dict(size=4))
 
 fig.update_layout(
     xaxis=dict(range=[-1.1, 1.1]),
