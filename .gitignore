@@ -155,3 +155,4 @@ cython_debug/
 /src/cifar-10-python.tar.gz
 /src/cifar-10-batches-py/
 /src/lightning_logs/
+VICReg/lightning_logs/version_0/hparams.yaml

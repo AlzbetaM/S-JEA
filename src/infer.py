@@ -24,6 +24,7 @@ def infer():
     args.batch_size = args.ft_batch_size
     args.effective_bsz = args.ft_batch_size
     args.data_dir = "../" + args.data_dir
+    args.strategy = None
 
     trainer_ft = pl.Trainer.from_argparse_args(
         args, max_epochs=args.ft_epochs,
@@ -31,7 +32,7 @@ def infer():
         enable_checkpointing=False,
         fast_dev_run=False,
         sync_batchnorm=True,
-        accelerator='gpu',
+        accelerator='cpu',
         check_val_every_n_epoch=args.ft_val_freq,
         accumulate_grad_batches=args.ft_accumulate_grad_batches
     )
