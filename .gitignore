@@ -156,3 +156,4 @@ cython_debug/
 /src/lightning_logs/
 /src/cifar-10-python.tar.gz
 /Data/
+*.yaml

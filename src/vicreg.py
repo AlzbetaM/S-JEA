@@ -274,7 +274,7 @@ class VICReg(pl.LightningModule):
         self.val_knn4 = total_top14 / total_num * 100
 
         if self.current_epoch == self.hparams.max_epochs - 1:
-            if self.plot_test_path_bank:
+            if self.hparams.dataset == 'stl10':
                 self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
             self.tsne_plot("pretrain", self.test_feature_bank)
 
@@ -353,7 +353,7 @@ class VICReg(pl.LightningModule):
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
 
         # if we have paths, save the arrays for future visualization
-        if self.plot_test_path_bank:
+        if self.hparams.dataset == 'stl10':
             np.savez(dest + name, path_bank=self.plot_test_path_bank.cpu().detach().numpy(),
                      label_bank=self.test_label_bank.cpu().detach().numpy(),
                      ty=ty, tx=tx)

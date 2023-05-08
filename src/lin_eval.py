@@ -324,7 +324,7 @@ class SSLLinearEval(pl.LightningModule):
                 classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
                 plt.legend(handles=scatter.legend_elements()[0], labels=classes)
 
-            if self.test_path_bank:
+            if self.hparams.dataset == 'stl10':
                 self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
                 self.test_path_bank = self.all_gather(self.test_path_bank)
                 self.test_path_bank = torch.flatten(self.test_path_bank, end_dim=1)
