@@ -179,8 +179,8 @@ class VICReg(pl.LightningModule):
             s_loss_cov = self.covariance_loss(stack_i, stack_j)
 
             if self.hparams.stacked == 3:
-                x_i = stack_i.reshape(self.hparams.batch_size, 1, self.x, self.y2)
-                x_j = stack_j.reshape(self.hparams.batch_size, 1, self.x, self.y2)
+                x_i = stack_i.reshape(self.hparams.batch_size, 1, 25, 40)
+                x_j = stack_j.reshape(self.hparams.batch_size, 1, 25, 40)
 
                 stack2_i, _ = self.encoder_stacked2(x_i)
                 stack2_j, _ = self.encoder_stacked2(x_j)
@@ -248,7 +248,7 @@ class VICReg(pl.LightningModule):
                 s = projection.reshape(self.hparams.batch_size, 1, self.x, self.y)
                 s_projection, s_embedding = self.encoder_stacked(s)
                 if self.hparams.stacked == 3:
-                    s2 = s_projection.reshape(self.hparams.batch_size, 1, self.x, self.y2)
+                    s2 = s_projection.reshape(self.hparams.batch_size, 1, 25, 40)
                     _, s2_embedding = self.encoder_stacked2(s2)
 
         if idx == 1:
