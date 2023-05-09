@@ -320,9 +320,10 @@ class VICReg(pl.LightningModule):
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
         self.val_knn = total_top1 / total_num * 100
-        if self.hparams.dataset == 'stl10':
-            self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
-        self.tsne_plot("pretrain", self.test_feature_bank)
+        if self.current_epoch == self.hparams.max_epochs - 1:
+            if self.hparams.dataset == 'stl10':
+                self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
+            self.tsne_plot("pretrain", self.test_feature_bank)
 
         if self.hparams.stacked >= 2:
             self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
@@ -338,7 +339,8 @@ class VICReg(pl.LightningModule):
                 total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
             self.val_knn_stacked = total_top1 / total_num * 100
-            self.tsne_plot("pretrain_s", self.test_feature_bank_stacked)
+            if self.current_epoch == self.hparams.max_epochs - 1:
+                self.tsne_plot("pretrain_s", self.test_feature_bank_stacked)
             self.train_feature_bank_stacked = []
             self.test_feature_bank_stacked = []
 
@@ -357,7 +359,8 @@ class VICReg(pl.LightningModule):
                     total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
                 self.val_knn_stacked2 = total_top1 / total_num * 100
-                self.tsne_plot("pretrain_s2", self.test_feature_bank_stacked2)
+                if self.current_epoch == self.hparams.max_epochs - 1:
+                    self.tsne_plot("pretrain_s2", self.test_feature_bank_stacked2)
                 self.train_feature_bank_stacked2 = []
                 self.test_feature_bank_stacked2 = []
 
