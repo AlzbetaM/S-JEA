@@ -159,3 +159,5 @@ cython_debug/
 *.yaml
 VICReg/lightning_logs/version_2/metrics.csv
 /model/
+/model_0/
+/lightning_logs/
