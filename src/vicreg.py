@@ -318,7 +318,7 @@ class VICReg(pl.LightningModule):
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
 
         self.val_knn = total_top1 / total_num * 100
-        if self.plot_test_path_bank:
+        if self.hparams.dataset == 'stl10':
             self.plot_test_path_bank = torch.cat(self.plot_test_path_bank, dim=0).contiguous()
         self.tsne_plot("pretrain", self.test_feature_bank)
 
@@ -392,7 +392,7 @@ class VICReg(pl.LightningModule):
             classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
 
-        if self.plot_test_path_bank:
+        if self.hparams.dataset == 'stl10':
             np.savez(dest + name, path_bank=self.plot_test_path_bank.cpu().detach().numpy(),
                      label_bank=self.test_label_bank.cpu().detach().numpy(),
                      ty=ty, tx=tx)

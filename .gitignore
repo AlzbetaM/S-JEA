@@ -155,3 +155,5 @@ cython_debug/
 /checkpoints/
 /src/lightning_logs/
 /src/cifar-10-batches-py/
+*.yaml
+VICReg/lightning_logs/version_2/metrics.csv

@@ -20,3 +20,7 @@ nvidia-smi
 rm logfiles.txt
 srun python src/pretrain.py -c=config_maxwell.conf
 srun python src/finetune.py -c=config_maxwell.conf
+
+rm logfiles.txt
+srun python src/pretrain.py -c=config_maxwell.conf --dataset=stl10 --ft_epochs=300 --max_epochs=300
+srun python src/finetune.py -c=config_maxwell.conf --dataset=stl10 --ft_epochs=300 --max_epochs=300
