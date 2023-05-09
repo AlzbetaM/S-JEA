@@ -84,7 +84,7 @@ def cli_main():
                     "E1LTQyZjktOWMzYS04MDIyNmYyNTIxMGQifQ==",
             project=args.project_name,
             name='Testing',  # Optional,
-            tags=["Test", args.tag],  # Optional,
+            tags=[args.tag, args.dataset, args.projection],  # Optional,
             source_files=['**/*.py']
         )
 
