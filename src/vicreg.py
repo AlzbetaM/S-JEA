@@ -86,6 +86,8 @@ class VICReg(pl.LightningModule):
                 self.y = 32
         elif self.hparams.stacked == 3:
             self.y2 = 16
+            self.encoder_stacked = models.__dict__[self.hparams.model]\
+                (dataset=self.hparams.dataset, norm_layer='bn2d', dim=1)
             self.encoder_stacked2 = models.__dict__[self.hparams.model]\
                 (dataset=self.hparams.dataset, norm_layer='bn2d', dim=1)
             if self.hparams.projection == "simple":
