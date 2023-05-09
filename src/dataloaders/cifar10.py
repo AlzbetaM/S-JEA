@@ -170,6 +170,38 @@ class Cifar10_DataModule(LightningDataModule):
         )
         return [loader_train, loader]
 
+    def predict_dataloader(self):
+
+        # Get transformations
+        transf = self.default_transforms() if self.test_transforms is None else self.test_transforms
+
+        # Dataset loader
+        dataset = self.DATASET(self.data_dir, train=False, download=True,
+                               transform=transf, **self.extra_args)
+
+        dataset_train = self.DATASET(self.data_dir, train=True, download=True,
+                               transform=transf, **self.extra_args)
+
+        loader = DataLoader(
+            dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            drop_last=True,
+            pin_memory=True,
+            sampler=None
+        )
+        loader_train = DataLoader(
+            dataset_train,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+            drop_last=True,
+            pin_memory=True,
+            sampler=None
+        )
+        return [loader_train, loader]
+
     def default_transforms(self):
         cf10_transforms = transforms.Compose([
             transforms.ToTensor(),

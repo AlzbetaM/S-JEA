@@ -349,6 +349,36 @@ class SSLLinearEval(pl.LightningModule):
         self.test_label_bank = []
         self.test_path_bank = []
 
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        if dataloader_idx == 0:
+            self.knn_shared_step(batch, batch_idx, 'train')
+
+        elif dataloader_idx == 1:
+            self.knn_shared_step(batch, batch_idx, 'test')
+            # This statement is for plotting visualisation purposes
+            if len(batch) > 2:
+                x, y, img_path = batch
+            else:
+                x, y = batch
+
+            with torch.no_grad():
+                _, feats = self.encode(x)
+                feats = feats.view(feats.size(0), -1)
+                logits = self.lin_head(feats)
+
+            # Compute loss and metrics
+            loss = self.criterion(logits, y)
+            acc = self.accuracy(F.softmax(logits), y)
+            t5 = self.top5(logits, y)
+
+            # Progress Bar
+            self.log_dict({'test_acc': acc, 'test_loss': loss, 'test_t5': t5}, sync_dist=True)
+
+            # Global Metrics
+            self.test_loss.append(loss.item())
+            self.test_acc.append(acc.item())
+            self.test_t5.append(t5)
+
     def configure_optimizers(self):
 
         lr = self.hparams.learning_rate
