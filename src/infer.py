@@ -2,9 +2,7 @@ import pytorch_lightning as pl
 import torch
 from configargparse import ArgumentParser
 import json
-from neptune.integrations.pytorch_lightning import NeptuneLogger
 
-from VICReg.src.utils import FTPrintingCallback
 from dataloaders.handlers import get_dm
 from lin_eval import SSLLinearEval
 
