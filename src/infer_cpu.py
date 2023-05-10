@@ -14,7 +14,7 @@ def get_args(d):
     return args
 
 def infer():
-    f = open("../Data/model/commandline_args.txt", 'r').read()
+    f = open("../model/commandline_args.txt", 'r').read()
     arg_dictionary = json.loads(f)
     args = get_args(arg_dictionary)
 

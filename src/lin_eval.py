@@ -102,7 +102,7 @@ class SSLLinearEval(pl.LightningModule):
 
     def encode(self, x):
         with torch.no_grad():
-            batch_size = x[0]
+            batch_size = x.size(0)
             if self.stacked:
                 i = j = 16
                 if self.hparams.projection == "none" or self.hparams.projection == "stacked":
@@ -258,7 +258,7 @@ class SSLLinearEval(pl.LightningModule):
             self.log_dict({'test_acc': acc, 'test_loss': loss, 'test_t5': t5}, sync_dist=True)
 
             # Logging
-            if rank_zero_check():
+            if rank_zero_check() and self.hparams.status != "Infer":
                 self.logger.experiment["ft_test/loss_step"].log(loss.item())
                 self.logger.experiment["ft_test/acc_step"].log(acc.item())
                 self.logger.experiment["ft_test/t5_step"].log(t5)
@@ -270,6 +270,9 @@ class SSLLinearEval(pl.LightningModule):
 
     @rank_zero_only
     def test_epoch_end(self, output) -> None:
+        if self.hparams.status == "Infer":
+            self.inference()
+            return
         # Compute final global metrics and plot visualisation of classification space
         self.train_feature_bank = torch.cat(self.train_feature_bank, dim=0).t().contiguous()
         self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
@@ -379,6 +382,69 @@ class SSLLinearEval(pl.LightningModule):
             self.test_loss.append(loss.item())
             self.test_acc.append(acc.item())
             self.test_t5.append(t5)
+
+    def inference(self):
+        # Compute final global metrics and plot visualisation of classification space
+        self.train_feature_bank = torch.cat(self.train_feature_bank, dim=0).t().contiguous()
+        self.test_feature_bank = torch.cat(self.test_feature_bank, dim=0).contiguous()
+        self.train_label_bank = torch.cat(self.train_label_bank, dim=0).contiguous()
+        self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
+
+        total_top1, total_num = 0.0, 0
+
+        for feat, label in zip(self.test_feature_bank, self.test_label_bank):
+            feat = torch.unsqueeze(feat, 0)
+
+            pred_label = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
+                                          self.hparams.num_classes, 200, 0.1)
+
+            total_num += feat.size(0)
+
+            total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
+
+        self.test_knn = total_top1 / total_num * 100
+
+        self.log_dict({'test_knn': self.test_knn}, sync_dist=True)
+
+        if self.hparams.dataset == 'cifar10' or self.hparams.dataset == 'stl10':
+            # TSNE
+            tsne = TSNE(n_components=2, verbose=1, random_state=123)
+            z = tsne.fit_transform(self.test_feature_bank.cpu().detach().numpy())
+            tx = z[:, 0]
+            ty = z[:, 1]
+
+            # scale and move the 'x' coordinates so they fit [0; 1] range
+            tx_range = (np.max(tx) - np.min(tx))
+            tx_from_zero = tx - np.min(tx)
+            tx = tx_from_zero / tx_range
+
+            # scale and move the 'y' coordinates so they fit [0; 1] range
+            ty_range = (np.max(ty) - np.min(ty))
+            ty_from_zero = ty - np.min(ty)
+            ty = ty_from_zero / ty_range
+
+            # Define the plot
+            fig = plt.figure(figsize=(15, 15))
+            scatter = plt.scatter(tx, ty, c=self.test_label_bank.cpu().detach().numpy(), cmap='tab10')
+            if self.hparams.dataset == 'stl10':
+                classes = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
+                plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+            elif self.hparams.dataset == 'cifar10':
+                classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+                plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+
+            if self.hparams.dataset == 'stl10':
+                self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
+                dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
+                if self.stacked:
+                    nm = dest + 's_plot_data.npz'
+                else:
+                    nm = dest + 'plot_data.npz'
+                np.savez(nm, path_bank=self.test_path_bank.cpu().detach().numpy(),
+                         label_bank=self.test_label_bank.cpu().detach().numpy(),
+                         ty=ty, tx=tx)
+            plt.clf()
+            plt.close()
 
     def configure_optimizers(self):
 
