@@ -17,8 +17,8 @@ def get_args(d):
     return args
 
 
-def infer():
-    f = open("C:/Users/alzbe/Documents/VICReg2/VICReg/model/commandline_args.txt", 'r').read()
+def infer(path=""):
+    f = open(path + "/commandline_args.txt", 'r').read()
     arg_dictionary = json.loads(f)
     args = get_args(arg_dictionary)
 
@@ -41,14 +41,13 @@ def infer():
          accumulate_grad_batches=args.ft_accumulate_grad_batches)
 
     _, ft_dm, args = get_dm(args)
-    checkpoint_path = "C:/Users/alzbe/Documents/VICReg2/VICReg/model/best_epoch.ckpt"
+    checkpoint_path = path +"/best_epoch.ckpt"
 
     model = SSLLinearEval.load_from_checkpoint(checkpoint_path, map_location=torch.device('cpu'))
     model.freeze()
     # Perform inference
-    pred = model(ft_dm)
-    print(pred)
+    pred = trainer.predict(model, ft_dm)
 
 
 if __name__ == '__main__':
-    infer()
+    infer("model")
