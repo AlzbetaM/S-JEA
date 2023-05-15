@@ -8,7 +8,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --partition=gpu
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=u25am19@abdn.ac.uk
+#SBATCH --mail-user=name.surname@abdn.ac.uk
 #SBATCH --signal=SIGUSR1@90
 #SBATCH --nodelist=gpu02
 

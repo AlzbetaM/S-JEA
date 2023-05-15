@@ -157,7 +157,8 @@ cython_debug/
 /src/cifar-10-python.tar.gz
 /Data/
 *.yaml
-VICReg/lightning_logs/version_2/metrics.csv
+lightning_logs/version_2/metrics.csv
 /model/
 /model_0/
 /lightning_logs/
+/model4/

@@ -78,9 +78,7 @@ def cli_main():
     # Neptune Logger www.neptune.ai    
     neptune_logger = NeptuneLogger(
             mode=args.mode,
-            api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsI"
-                    "joiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJhYmNlN2NlYS05Y2"
-                    "E1LTQyZjktOWMzYS04MDIyNmYyNTIxMGQifQ==",
+            api_key="",
             project=args.project_name,
             tags=["Pretrain", args.tag, args.projection, str(args.stacked), args.dataset],
             source_files=['**/*.py'])
@@ -112,7 +110,7 @@ def cli_main():
         multiple_trainloader_mode='max_size_cycle'
         )
 
-    # Define the model (here I turn on pytorch 2 or not, this is experimental version of pytorch)
+    # Define the model (shoul work for pytorch2 as well)
     if args.pt2:
         model = torch.compile(VICReg(**args.__dict__))
     else:
@@ -121,7 +119,7 @@ def cli_main():
     # Fit the model with the data
     trainer.fit(model, dm)
 
-    # Save and define path to trained model for finetuning
+    # Save and define path to trained model for fine-tuning
     if rank_zero_check():
         print("os.listdir(pt_model_dir) :{}".format(os.listdir(pt_model_dir)))
 

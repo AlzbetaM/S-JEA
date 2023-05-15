@@ -1,23 +1,20 @@
 import io
-import os
 import base64
-
 import pandas as pd
+import numpy as np
 from dash import Dash, dcc, html, Input, Output, no_update
 import plotly.express as px
-import plotly.graph_objects as go
-
 from PIL import Image
 
-import numpy as np
-
 # This is done specifically for the set stl10
-# For any other dataset, we need to change the class names and number of images in a class
+# For any other dataset, class names and number of images in a class have to be revised
 
-# load saved data
-data = np.load("Data/2_simple_s_pretrain.npz")
+# load saved data - choose which t-SNE plot to visualise
+# options: finetune.npz, pretrain.npz (level 0 of S-JEA)
+#          s_finetune.npz, s_pretrain.npz (level 1 of S-JEA)
+data = np.load("Data/model4/1_simple_s_pretrain.npz")
 
-# load each array ( making sure they are of correct type
+# load arrays from .npz file
 tx = data['tx']
 ty = data['ty']
 paths = data['path_bank'].astype(int)
@@ -25,17 +22,11 @@ labels = data['label_bank'].astype(int)
 
 
 # sorting the arrays by labels - useful for interactive legend
-def argsort(a, b, c, d):
-    index = a.argsort()
-    return a[index], b[index], c[index], d[index]
-
-
-labels, paths, tx, ty = argsort(labels, paths, tx, ty)
-
+index = labels.argsort()
+labels, paths, tx, ty = labels[index], paths[index], tx[index], ty[index]
 
 # this is defined in labels as 10, 1, 2, 3, 4, 5, 6, 7, 8, 9 (i.e. for indexing convert 10 to 0)
 class_names = ["truck", "airplane", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
-
 # 1, 10, 2, 3, 4, 5, 6, 7, 8, 9, i.e., in array labels, 0 corresponds to 1 and 1 corresponds to 10
 class_nm = ["airplane", "truck", "bird", "car", "cat", "deer", "dog", "horse", "monkey", "ship"]
 labels_real = [class_nm[label] for label in labels]
@@ -61,16 +52,16 @@ fig.update_layout(
     yaxis_showticklabels=False,
     xaxis_showticklabels=False,
     yaxis_visible=False,
-    xaxis_visible=False,)
+    xaxis_visible=False, )
 
-# fig.show()
-# Set up the app now
+# Set up the Dash Visualisation Application
 app = Dash(__name__)
 
 app.layout = html.Div(
     className="container",
     children=[dcc.Graph(id="graph-2-dcc", figure=fig, clear_on_unhover=True),
               dcc.Tooltip(id="graph-tooltip-2", direction='bottom')])
+
 
 @app.callback(
     Output("graph-tooltip-2", "show"),
@@ -79,11 +70,12 @@ app.layout = html.Div(
     Output("graph-tooltip-2", "direction"),
     Input("graph-2-dcc", "hoverData")
 )
+# Define what image will be shown on hover
 def display_hover(hoverData):
     if hoverData is None:
         return False, no_update, no_update, no_update
     # index of the image path in the paths array (800 is the number of elements in each class)
-    p = paths[hoverData['points'][0]['pointIndex'] + 800*hoverData['points'][0]['curveNumber']]
+    p = paths[hoverData['points'][0]['pointIndex'] + 800 * hoverData['points'][0]['curveNumber']]
 
     img_name = p[1]
     class_id = p[0]
@@ -91,13 +83,13 @@ def display_hover(hoverData):
     image_path = 'Data/test/' + str(class_id) + '/' + str(img_name) + '.png'
     im = Image.open(image_path)
 
-    # dump it to base64
+    # base64
     buffer = io.BytesIO()
     im.save(buffer, format="jpeg")
     encoded_image = base64.b64encode(buffer.getvalue()).decode()
     im_url = "data:image/jpeg;base64, " + encoded_image
 
-    # demo only shows the first point, but other points may also be available
+    # If multiple points on top of each other, app only shows the first
     hover_data = hoverData["points"][0]
     bbox = hover_data["bbox"]
 
@@ -105,6 +97,7 @@ def display_hover(hoverData):
     y = hover_data["y"]
     direction = "bottom" if y > 0.5 else "top"
 
+    # what will be shown on hover
     if class_id == 10:
         class_id = 0
     children = [
@@ -119,4 +112,5 @@ def display_hover(hoverData):
 
 
 if __name__ == "__main__":
+    # run application
     app.run_server(debug=True)

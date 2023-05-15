@@ -328,6 +328,7 @@ class SSLLinearEval(pl.LightningModule):
                 classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
                 plt.legend(handles=scatter.legend_elements()[0], labels=classes)
 
+            # save data in .npz for future visualisation
             if self.hparams.dataset == 'stl10':
                 self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
                 self.test_path_bank = self.all_gather(self.test_path_bank)
@@ -340,9 +341,12 @@ class SSLLinearEval(pl.LightningModule):
                 np.savez(nm, path_bank=self.test_path_bank.cpu().detach().numpy(),
                          label_bank=self.test_label_bank.cpu().detach().numpy(),
                          ty=ty, tx=tx)
-
             if rank_zero_check():
                 self.logger.experiment['tsne/test_tsne'].upload(neptune.types.File.as_image(fig))
+            if self.stacked:
+                plt.savefig("s_plot.png")
+            else:
+                plt.savefig("plot.png")
             plt.clf()
             plt.close()
 
@@ -352,36 +356,6 @@ class SSLLinearEval(pl.LightningModule):
         self.test_feature_bank = []
         self.test_label_bank = []
         self.test_path_bank = []
-
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        if dataloader_idx == 0:
-            self.knn_shared_step(batch, batch_idx, 'train')
-
-        elif dataloader_idx == 1:
-            self.knn_shared_step(batch, batch_idx, 'test')
-            # This statement is for plotting visualisation purposes
-            if len(batch) > 2:
-                x, y, img_path = batch
-            else:
-                x, y = batch
-
-            with torch.no_grad():
-                _, feats = self.encode(x)
-                feats = feats.view(feats.size(0), -1)
-                logits = self.lin_head(feats)
-
-            # Compute loss and metrics
-            loss = self.criterion(logits, y)
-            acc = self.accuracy(F.softmax(logits), y)
-            t5 = self.top5(logits, y)
-
-            # Progress Bar
-            self.log_dict({'test_acc': acc, 'test_loss': loss, 'test_t5': t5}, sync_dist=True)
-
-            # Global Metrics
-            self.test_loss.append(loss.item())
-            self.test_acc.append(acc.item())
-            self.test_t5.append(t5)
 
     def inference(self):
         # Compute final global metrics and plot visualisation of classification space
@@ -433,6 +407,7 @@ class SSLLinearEval(pl.LightningModule):
                 classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
                 plt.legend(handles=scatter.legend_elements()[0], labels=classes)
 
+            # save data in .npz for future visualisation
             if self.hparams.dataset == 'stl10':
                 self.test_path_bank = torch.cat(self.test_path_bank, dim=0).contiguous()
                 dest = str(self.hparams.stacked) + "_" + self.hparams.projection + "_"
@@ -443,6 +418,10 @@ class SSLLinearEval(pl.LightningModule):
                 np.savez(nm, path_bank=self.test_path_bank.cpu().detach().numpy(),
                          label_bank=self.test_label_bank.cpu().detach().numpy(),
                          ty=ty, tx=tx)
+            if self.stacked:
+                plt.savefig("s_plot.png")
+            else:
+                plt.savefig("plot.png")
             plt.clf()
             plt.close()
 
@@ -484,7 +463,7 @@ class SSLLinearEval(pl.LightningModule):
 
         (args, _) = parser.parse_known_args()
 
-        # optim
+        # optimisation
         parser.add_argument('--ft_epochs', type=int, default=2)
         parser.add_argument('--ft_batch_size', type=int, default=128)
         parser.add_argument('--ft_learning_rate', type=float, default=0.02)

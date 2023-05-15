@@ -241,37 +241,17 @@ class VICReg(pl.LightningModule):
         self.test_label_bank = torch.cat(self.test_label_bank, dim=0).contiguous()
 
         total_top1, total_num = 0.0, 0
-        total_top11 = 0.0
-        total_top12 = 0.0
-        total_top13 = 0.0
-        total_top14 = 0.0
 
         for feat, label in zip(self.test_feature_bank, self.test_label_bank):
             feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
 
             pred_label = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
                                           self.hparams.num_classes, 80, 0.1)
-            pred_label1 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                           self.hparams.num_classes, 100, 0.1)
-            pred_label2 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                           self.hparams.num_classes, 130, 0.1)
-            pred_label3 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                           self.hparams.num_classes, 160, 0.1)
-            pred_label4 = self.knn_predict(feat, self.train_feature_bank, self.train_label_bank,
-                                           self.hparams.num_classes, 200, 0.1)
 
             total_num += feat.size(0)
             total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
-            total_top11 += (pred_label1[:, 0].cpu() == label.cpu()).float().sum().item()
-            total_top12 += (pred_label2[:, 0].cpu() == label.cpu()).float().sum().item()
-            total_top13 += (pred_label3[:, 0].cpu() == label.cpu()).float().sum().item()
-            total_top14 += (pred_label4[:, 0].cpu() == label.cpu()).float().sum().item()
 
         self.val_knn = total_top1 / total_num * 100
-        self.val_knn1 = total_top11 / total_num * 100
-        self.val_knn2 = total_top12 / total_num * 100
-        self.val_knn3 = total_top13 / total_num * 100
-        self.val_knn4 = total_top14 / total_num * 100
 
         if self.current_epoch == self.hparams.max_epochs - 1:
             if self.hparams.dataset == 'stl10':
@@ -282,36 +262,16 @@ class VICReg(pl.LightningModule):
             self.train_feature_bank_stacked = torch.cat(self.train_feature_bank_stacked, dim=0).t().contiguous()
             self.test_feature_bank_stacked = torch.cat(self.test_feature_bank_stacked, dim=0).contiguous()
             total_top1, total_num = 0.0, 0
-            total_top11 = 0.0
-            total_top12 = 0.0
-            total_top13 = 0.0
-            total_top14 = 0.0
             for feat, label in zip(self.test_feature_bank_stacked, self.test_label_bank):
                 feat = torch.unsqueeze(feat.cuda(non_blocking=True), 0)
 
                 pred_label = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
                                               self.hparams.num_classes, 80, 0.1)
-                pred_label1 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                               self.hparams.num_classes, 100, 0.1)
-                pred_label2 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                               self.hparams.num_classes, 130, 0.1)
-                pred_label3 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                               self.hparams.num_classes, 160, 0.1)
-                pred_label4 = self.knn_predict(feat, self.train_feature_bank_stacked, self.train_label_bank,
-                                               self.hparams.num_classes, 200, 0.1)
 
                 total_num += feat.size(0)
                 total_top1 += (pred_label[:, 0].cpu() == label.cpu()).float().sum().item()
-                total_top11 += (pred_label1[:, 0].cpu() == label.cpu()).float().sum().item()
-                total_top12 += (pred_label2[:, 0].cpu() == label.cpu()).float().sum().item()
-                total_top13 += (pred_label3[:, 0].cpu() == label.cpu()).float().sum().item()
-                total_top14 += (pred_label4[:, 0].cpu() == label.cpu()).float().sum().item()
 
             self.val_knn_stacked = total_top1 / total_num * 100
-            self.val_knn_stacked1 = total_top11 / total_num * 100
-            self.val_knn_stacked2 = total_top12 / total_num * 100
-            self.val_knn_stacked3 = total_top13 / total_num * 100
-            self.val_knn_stacked4 = total_top14 / total_num * 100
 
             if self.current_epoch == self.hparams.max_epochs - 1:
                 self.tsne_plot("s_pretrain", self.test_feature_bank_stacked)
@@ -351,7 +311,7 @@ class VICReg(pl.LightningModule):
         elif self.hparams.dataset == 'cifar10':
             classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
             plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-
+        plt.savefig(name + ".png")
         # if we have paths, save the arrays for future visualization
         if self.hparams.dataset == 'stl10':
             np.savez(dest + name, path_bank=self.plot_test_path_bank.cpu().detach().numpy(),

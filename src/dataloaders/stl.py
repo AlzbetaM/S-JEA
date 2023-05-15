@@ -57,7 +57,6 @@ class STL_DataModule(LightningDataModule):
         transf = self.default_transforms() if self.train_transforms is None else self.train_transforms
 
         # Dataset loader
-        #dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'unlabelled'), transform=transf)
         dataset_train = self.DATASET(self.data_dir, split="unlabeled", download=True,
                                transform=transf, **self.extra_args)
         # Train / Val split  
@@ -88,12 +87,7 @@ class STL_DataModule(LightningDataModule):
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
         dataset_valid = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf)
         dataset_ssl = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf_ssl)
-        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
-                               transform=transf, **self.extra_args)
-        dataset_valid = self.DATASET(self.data_dir, split="test", download=True,
-                               transform=transf, **self.extra_args)
-        dataset_ssl = self.DATASET(self.data_dir, split="test", download=True,
-                               transform=transf_ssl, **self.extra_args)'''
+
         # Train / Val split
         # self.data, self.labels = utils.random_split_image_folder(data=self.train_imagenet.samples,
         #                                                          labels=self.train_imagenet.targets,
@@ -142,11 +136,6 @@ class STL_DataModule(LightningDataModule):
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
         dataset_test = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf)
 
-        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
-                              transform=transf, **self.extra_args)
-
-        dataset_test = self.DATASET(self.data_dir, split="test", download=True,
-                                     transform=transf, **self.extra_args)'''
 
         # Loader
         loader = DataLoader(
@@ -260,8 +249,6 @@ class STL_ft_DataModule(LightningDataModule):
 
         # Dataset loader
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
-        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
-                                     transform=transf, **self.extra_args)'''
 
         # Train / Val split  
         # self.data, self.labels = utils.random_split_image_folder(data=self.train_dataset.samples,
@@ -291,13 +278,6 @@ class STL_ft_DataModule(LightningDataModule):
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
         dataset_valid = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf)
         dataset_ssl = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf_ssl)
-
-        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
-                     transform=transf, **self.extra_args)
-        dataset_valid = self.DATASET(self.data_dir, split="test", download=True,
-                                     transform=transf, **self.extra_args)
-        dataset_ssl= self.DATASET(self.data_dir, split="test", download=True,
-                                     transform=transf_ssl, **self.extra_args)'''
 
         # Train / Val split  
         # self.data, self.labels = utils.random_split_image_folder(data=self.train_imagenet.samples,
@@ -347,10 +327,6 @@ class STL_ft_DataModule(LightningDataModule):
         dataset_train = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'train'), transform=transf)
         dataset_test = ImageFolderWithPaths(root=os.path.join(self.data_dir, 'test'), transform=transf)
 
-        '''dataset_train = self.DATASET(self.data_dir, split="train", download=True,
-                                     transform=transf, **self.extra_args)
-        dataset_test = self.DATASET(self.data_dir, split="test", download=True,
-                                     transform=transf, **self.extra_args)'''
         # Loader
         loader = DataLoader(
             dataset_test,
@@ -379,6 +355,7 @@ class STL_ft_DataModule(LightningDataModule):
                                  std=[0.229, 0.224, 0.225])
         ])
         return default_transforms
+
 
 class STLTrainDataTransform(object):
     def __init__(self, args):
@@ -430,7 +407,8 @@ class STLEvalDataTransform(object):
     def __init__(self, args):
 
         test_transform = transforms.Compose([  # transforms.ToPILImage(),
-            transforms.Resize((int(args.img_dim//0.8), int(args.img_dim//0.8)), interpolation=InterpolationMode.BICUBIC),
+            transforms.Resize((int(args.img_dim//0.8), int(args.img_dim//0.8)),
+                              interpolation=InterpolationMode.BICUBIC),
             transforms.CenterCrop((args.img_dim, args.img_dim)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.43, 0.42, 0.39],

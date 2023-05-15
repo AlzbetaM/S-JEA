@@ -17,7 +17,7 @@ from utils import FTPrintingCallback, rank_zero_check
 from lin_eval import SSLLinearEval
 
 
-def cli_main(stacked=False):
+def cli_main(stacked=0):
     # Arguments
     default_config = os.path.join(os.path.split(os.getcwd())[0], 'config.conf')
     parser = ArgumentParser(
@@ -43,7 +43,7 @@ def cli_main(stacked=False):
     parser = SSLLinearEval.add_model_specific_args(parser)
     args = parser.parse_args()
 
-    # Some init
+    # Setup
     seed_everything(args.seed)
     args.status = 'Finetune'
     args.devices = int(args.devices)
@@ -53,9 +53,7 @@ def cli_main(stacked=False):
     x = "Finetune_S" if stacked else "Finetune"
     neptune_logger = NeptuneLogger(
             mode=args.mode,
-            api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsI"
-                    "joiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJhYmNlN2NlYS05Y2"
-                    "E1LTQyZjktOWMzYS04MDIyNmYyNTIxMGQifQ==",
+            api_key="",
             project=args.project_name,
             tags=[x, args.tag, args.projection, str(args.stacked), args.dataset],
             source_files=['**/*.py']
@@ -81,7 +79,6 @@ def cli_main(stacked=False):
     encoder = VICReg.load_from_checkpoint(checkpoint_path, strict=False)
     
     # Setup batch size for parallel computation
-
     if args.strategy == 'ddp':
         args.effective_bsz = args.ft_batch_size * args.num_nodes * args.devices
     elif args.strategy == 'ddp2':
@@ -104,14 +101,15 @@ def cli_main(stacked=False):
         accumulate_grad_batches=args.ft_accumulate_grad_batches
         )
 
-    if stacked:
+    # Define the model (if-else based on the version of pytorch)
+    # stacked variable decides which level of S-JEA is fine-tuned
+    if stacked == 1:
         if args.pt2:
             ft_model = torch.compile(SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked],
                                                    stack=True, **args.__dict__))
         else:
             ft_model = SSLLinearEval([encoder.encoder_online, encoder.encoder_stacked], stack=True, **args.__dict__)
     else:
-        # Define the model (here I turn on pytorch 2 or not, this is experimental version of pytorch)
         if args.pt2:
             ft_model = torch.compile(SSLLinearEval(encoder.encoder_online, **args.__dict__))
         else:
@@ -150,8 +148,10 @@ def cli_main(stacked=False):
     
     neptune_logger.experiment.stop()
 
-    if args.stacked == 1 and not stacked:
-        cli_main(True)
+    # if the model is S-JEA and only level 0 was fine-tuned
+    if args.stacked == 1 and stacked == 0:
+        # fine-tune level 1
+        cli_main(1)
 
 
 if __name__ == '__main__':
