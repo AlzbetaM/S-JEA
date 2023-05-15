@@ -12,7 +12,7 @@ def get_args(d):
     for k, v in d.items():
         parser.add_argument('--' + k, default=v)
     args = parser.parse_args()
-    # <odify some values for inference
+    # Modify some values for inference
     args.ft_epochs = 0
     args.status = 'Infer'
     args.devices = int(args.devices)
